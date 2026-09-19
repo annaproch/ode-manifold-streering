@@ -47,7 +47,7 @@ Important implementation distinctions:
 - Success is evaluated using toy ground truth or LLM output, independently of the steering score. Report held-out ranking, calibration, class balance and the restricted score landscape; classifier training accuracy alone is insufficient.
 - Because h uses normalized x, its gradient is orthogonal to x. The continuous flow preserves norm, but a finite Euler step increases squared norm by the squared step length. It is not an exact rotation.
 - T is the sum of proposed unit-gradient step lengths for B, up to numerical normalization. It is **not** the actual path length of E2 after its normal corrections. Measure actual movement, correction lengths, endpoint displacement, norm change and runtime.
-- The yaml default is T = 1; the paper's Llama-3.1-8B settings are around 4–6. Do not transplant toy T values to the LLM. Code layer index 13 corresponds to paper layer 14; record exact zero-based hook indices for every pilot configuration.
+- The yaml default is T = 1; the paper's Llama-3.1-8B settings are around 4–6. Do not transplant toy T values to the LLM. Code layer index 13 probably corresponds to the paper's "layer 14" (inferred; the paper does not state its indexing); record exact zero-based hook indices for every pilot configuration.
 
 ## 4. Method and required controls
 
@@ -80,7 +80,7 @@ x_new = x + U(z − Uᵀ(x − μ))
 
 P_T is the projector onto the top m local PCs of the k nearest stored points. The normal correction is SCMS-style; local-PCA normals are an approximation rather than a basis for claiming exact density-ridge guarantees. Plain mean shift pulls along the manifold toward density bumps and stalls in the ring toy as r grows; keep it as a deferred ablation (§9.3).
 
-**The zero-strength problem:** the correction has no T factor and still changes x at T = 0. Seed-0 diagnostics moved noisy ring starts by median 0.063 R and grey-centre starts by 0.311 R (§9.6). Projecting an arbitrary activation onto a colour manifold can create the concept instead of preserving it.
+**The zero-strength problem:** the correction has no T factor and still changes x at T = 0. Seed-0 diagnostics moved noisy ring starts by median 0.063 R; grey-centre starts are bimodal, with 57–65% captured onto the ring (§9.6). Projecting an arbitrary activation onto a colour manifold can create the concept instead of preserving it.
 
 Before using E2 in the pilot:
 
@@ -111,7 +111,7 @@ Question: Which color name best describes the hex code {hex}? Choose one of: red
 Answer:
 ```
 
-The existing fixture was validated on Qwen3-4B; validate the chosen Llama checkpoint rather than assuming transfer. First run 50–100 prompts on CPU. Validate the six-way readout and an extended eight-way version with gray and brown separately. The earlier screening criterion was extended chromatic accuracy at least 90% of six-way accuracy, plus correct gray/brown responses on controls; also require useful absolute performance and adequate answer-token probability. Freeze acceptance criteria before evaluating the full pilot.
+The existing fixture was validated on Qwen3-4B; validate the chosen Llama checkpoint rather than assuming transfer. First run 50–100 prompts. **Hardware (open decision):** Llama-3.1-8B needs ≈ 16 GB in bf16, so this cannot run on the current 8 GB machine; use a GPU with ≥ 24 GB or a CPU host with ≥ 32 GB RAM. Quantizing to fit would change activations and break the pinned-checkpoint requirement. Validate the six-way readout and an extended eight-way version with gray and brown separately. The earlier screening criterion was extended chromatic accuracy at least 90% of six-way accuracy, plus correct gray/brown responses on controls; also require useful absolute performance and adequate answer-token probability. Freeze acceptance criteria before evaluating the full pilot.
 
 Leading-space answer words, including gray/grey/brown, were checked as single tokens in the Llama-3.1 tokenizer. Recheck the exact checkpoint/context and aggregate valid spelling/case variants. Keep an **other** bin for all remaining vocabulary probability; do not renormalize away invalid answers.
 
@@ -198,7 +198,7 @@ Before outcome inspection, define a practically useful improvement and the analy
 ### 6.1 Run now
 
 1. **CPU preflight:** implement/check no-op and small-strength behavior, R0 and eligibility diagnostics. Existing toys already justify a real-model check; avoid another broad shape sweep. Verify that geometry-disabled code reproduces the baseline and preserve archived results separately from revised algorithms.
-2. **CPU-sized model smoke test:** 50–100 colour prompts, readout validation and a small donor-patching check. CPU is technically sufficient if memory permits; model forwards are the bottleneck. Do not assume a smaller checkpoint is adequate without passing the readout gate.
+2. **Smoke test on the pinned Llama-3.1-8B checkpoint:** 50–100 colour prompts, readout validation and a small donor-patching check. Needs ≥ 16 GB for bf16 weights (§5.1; not this 8 GB machine). Do not substitute a smaller checkpoint unless it separately passes the readout gate.
 3. **Expanded colour pilot after the gate passes:** dense activation collection and the §5.3 comparison on one checkpoint/site. PCA, classifiers, graph operations and analyses are CPU-friendly; a GPU is preferred for thousands of model forwards. Freeze settings on validation, then run the confirmatory test.
 4. **Continue only against the predeclared hypothesis:** confirm another target hue and a held-out prompt template before broader tasks. Report failures as well as successful gates.
 
@@ -294,7 +294,7 @@ Grid: start ∈ {60, 90, 120, 150, 180}°, T ∈ {10, 20, 40}, r = 3; separate r
 
 ### 9.4 Non-circular geometries: horseshoe and Y-branch
 
-Setup ([`toy/geometries.py`](toy/geometries.py)): 1-D curves in a 3-D subspace of a 256-D space, same noise, offset and classifier recipe (train accuracy 0.90–0.92). **Horseshoe:** an arc of radius R from −150° to +150°; start at one tip, target at the other; the straight path crosses a gap of ≈ R, the on-data path is ≈ 5.2 R long and first moves away from the target. **Y:** three arms of length 2R at 0°, 120°, 240°; start at one tip, target at another; the on-data path goes through the junction. Success = within 0.5 R of the target tip; max gap = largest distance in the fitted PCA coordinates from the path to the nearest stored point ÷ R (≈ 0.06 means close in that projection, not a full-space manifold guarantee).
+Setup ([`toy/geometries.py`](toy/geometries.py)): 1-D curves in a 3-D subspace of a 256-D space, same noise, offset and classifier recipe (posterior-threshold train accuracy 0.90–0.92, which is the majority-class baseline; see §9.6). **Horseshoe:** an arc of radius R from −150° to +150°; start at one tip, target at the other; the straight path crosses a gap of ≈ R, the on-data path is ≈ 5.2 R long and first moves away from the target. **Y:** three arms of length 2R at 0°, 120°, 240°; start at one tip, target at another; the on-data path goes through the junction. Success = within 0.5 R of the target tip; max gap = largest distance in the fitted PCA coordinates from the path to the nearest stored point ÷ R (≈ 0.06 means close in that projection, not a full-space manifold guarantee).
 
 | Geometry | Method | Success at T = 2 / 4 / 6 / 10 / 20 / 40 | Max gap ÷ R |
 |---|---|---|---|
@@ -325,16 +325,22 @@ These are additional **seed-0 diagnostics**, not six-replicate sweep estimates.
 
 These values are majority-class accuracy under `predict()`, not evidence of no learned discrimination. Training ROC-AUC is 0.9897 for horseshoe and 0.9982 for Y; a noisy-coordinate proxy for ring labels gave 0.9870 and must not be reported as exact-label ring AUC.
 
-An exact-positive-set check on the seed-0 ring gave pi = 0.167. `log_dre > 0` accepted every training positive and every E2 endpoint in a 150° start, T = 20, 40-step, r = 3 run. It also accepted 33.0% of training negatives, so a corrected score threshold is not an exact red-region classifier. The reviewer/user reports unchanged E3 success when selecting highest-scoring stored points; that variant has not been independently rerun in this review. Labels, score thresholds and high-score subsets remain alternatives to validate (§4.3).
+An exact-positive-set check on the seed-0 ring gave pi = 0.167. `log_dre > 0` accepted every training positive and every E2 endpoint in a 150° start, T = 20, 40-step, r = 3 run. It also accepted 33.0% of training negatives, so a corrected score threshold is not an exact red-region classifier. Selecting the highest-scoring stored points gave unchanged E3 success (numbers below). Labels, score thresholds and high-score subsets remain alternatives to validate (§4.3).
 
 With the unmodified E2 normal corrections, 40 iterations and r = 3, a seed-0 check gave:
 
 | Start distribution | Directional T | Median full-space displacement / R |
 |---|---:|---:|
 | Noisy ring near 150° | 0 | 0.0633 |
-| Noisy grey centre | 0 | 0.3113 |
+| Noisy grey centre | 0 | 0.3113 (32 starts) |
 
-The grey starts used the fitted world's true centre μ plus isotropic noise 0.3, with 32 samples; the noise generator was seeded 1000 after consuming the same 32 angle draws used for the ring starts. The reviewer/user reported 0.76 R under other unspecified start conditions. The magnitude is setup-dependent; both observations motivate the same zero/small-strength and eligibility checks. There is no claim that the current code already satisfies those checks.
+The grey starts used the fitted world's true centre μ plus isotropic noise 0.3 in all dimensions. **This outcome is bimodal, so a median is not a stable summary.** With 256 starts from the same distribution and three noise seeds (0, 1000, 7): 57–65% end on the ring (end radius > 0.8 R); displacement percentiles 10th/50th/90th ≈ 0.05–0.07 / 0.74–0.79 / 0.90 R; medians of 32-start batches range 0.24–0.83 R. The 0.31 R above and the earlier 0.76 R are draws from this one distribution. Starts exactly at the in-plane centre (an unstable fixed point) or within ≈ 0.02 R of it barely move. Report the capture fraction, not a median. There is no claim that the current code already satisfies the §4.2 checks.
+
+**Default ODESteer is near-linear in these toys, but the cut-across result is robust.** At default settings the classifier gradient has cosine ≈ 0.98 with the CAA direction at all tested starts, which is why A ≈ B ≈ C in §9.1. Refitting with C = 10³ and gamma = 10 (training balanced accuracy 1.00, held-out AUC 0.98, cosine with CAA ≈ 0.65) still gives lowest radius 0.09 R from 180°, 0.46 R from 150° and 0.81 R from 120° (seed 0, 64 starts, T = 10, 40 steps). So B's crossing is not an artefact of the underfit default classifier.
+
+**E3 with classifier-derived positives (seed 0):** taking the top-k stored points by `log_dre` (k = number of true positives; precision 0.81–0.95) gives E3 success equal to true labels: horseshoe 0.98 vs 0.98 at T = 40; Y 0.89 vs 0.91 at T = 20.
+
+These seed-0 diagnostics were run interactively and are not yet regenerated by a committed script.
 
 ## 10. References and code
 
