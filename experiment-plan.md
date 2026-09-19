@@ -1,215 +1,346 @@
-# Draft experiment plan: ODE steering constrained to a concept manifold
+# Experiment plan: ODE steering constrained to a concept manifold
 
-*Status: draft, revised 2026-09-19 after a design review (§9). Nothing has been run on an LLM yet; only a synthetic CPU toy (§9.1).*
+*Status: consolidated 2026-09-19. This is the single current plan, incorporating the design reviews and follow-up corrections. No LLM experiment has been run. Committed CPU toy results are in §9; additional seed-0 review diagnostics are identified separately. The zero/small-strength safeguards below are requirements for the pilot, not already implemented fixes.*
 
-## 1. Idea in one paragraph
+**Decision: pursue one bounded real-model pilot.** Run CPU controls and a 50–100-prompt colour/readout and donor-patching check first. Expand to a dense colour pilot only if the intervention space causally controls the answer. The broader roadmap is conditional (§6); the immediate work is the gated colour pilot.
 
-ODESteer steers an LLM by moving a hidden activation along the gradient of a classifier ("more positive-like"). It knows *which way is better*, but nothing keeps the moving activation where real activations actually live, so it can cut through empty regions of activation space. Concept-geometry work (Goodfire's Neural Geometry series) shows that many concepts lie on curved, low-dimensional manifolds. **Proposal:** keep ODESteer's gradient flow, but constrain it to the concept manifold: (a) restrict it to the concept's subspace and (b) keep it on the data inside that subspace. This is the manifold-preserving guidance idea from diffusion models (MPGD, DPS, MCG), applied inside interpretable concept coordinates. With the constraint switched off, it reduces to ODESteer exactly.
+## 1. Idea and intended contribution
 
-**Scope of the novelty claim (see §8).** Density-weighted steering geometry already appears in Wurgaft et al. (2605.05115, Definition 1), and geodesic and kernel-based curved steering exist (Riemannian-Manifold Steering, Curveball). The defensible contribution is: *ODESteer's gradient flow constrained to a manifold, compared with spline and geodesic manifold steering on shared metrics.* "Classifier guidance in concept coordinates" on its own is not new.
+ODESteer edits a hidden activation using a classifier gradient. Proposal E2 restricts that gradient to a concept subspace, projects it onto a locally estimated tangent, and applies a normal correction toward the observed data. E3 additionally replaces the classifier score with a graph-distance score, but is a follow-up variant rather than the first pilot's main method.
 
-## 2. Hypothesis
+The research question is whether **estimating the concept's actual data geometry improves control beyond subspace restriction, endpoint correction and norm preservation**. The classifier is trained and the geometry is fitted; the potential economy is no additional neural geometry model.
 
-At matched target success, the manifold-constrained flow keeps its intermediate states on-concept (colours: it stays saturated instead of passing through grey or brown; behavioural concepts such as emotion: it moves through neighbouring states instead of cutting across), and it causes fewer off-target side effects and less fluency damage than ODESteer.
+Curved steering and density-based geometry are prior work. [GeoSteer](https://arxiv.org/html/2609.10658), submitted September 9, already combines a polynomial-count-sketch probe, spherical tangent projection and norm-preserving geodesic updates. It constrains the activation sphere rather than estimating a concept-specific data manifold. That distinction must earn its value experimentally; tangent projection alone is not the novelty claim. See §8.
 
-**Known limit (from §9.1):** when the start is directly opposite the target (e.g. cyan → red), the part of ∇h that points along the manifold is close to zero, so no manifold-constrained gradient flow has a preferred direction there. Treat the antipodal case as its own condition and expect slow or stalled progress from it; its outcome is not a test of the main hypothesis.
+## 2. Two separate hypotheses
 
-## 3. Background: what ODESteer actually does (verified in its code)
+Predeclare both hypotheses and their analysis before looking at pilot outcomes:
 
-Source: [ZhaoHongjue/odesteer](https://github.com/ZhaoHongjue/odesteer), `src/odesteer/steer/_ode_steer.py`, `src/odesteer/utils/kernels/`, `src/odesteer/lm/_huggingface_lm.py`, `confs/steer/ODESteer.yaml`.
+1. **Endpoint hypothesis:** at matched target success, E2 produces final output distributions closer to natural target outputs, with less unwanted change than simpler controls. The colour pilot tests this restricted claim; general fluency and content preservation require later generation experiments.
+2. **Path-control hypothesis:** at matched target success, interventions at intermediate points produce more natural concept transitions. This is an independent interpretability/control objective, with path naturalness as a primary metric, following [Wurgaft et al., Appendix A.7](https://arxiv.org/html/2605.05115).
 
-**Offline (the LLM is frozen):**
-1. Run the LLM on positive and negative texts. Keep the layer-L activation at the last token → `pos_X`, `neg_X` (N × d).
-2. L2-normalise each activation, then map it through a **fixed random** degree-2 polynomial count sketch (`NormedPolyCntSketch`) with 8000 features, `gamma = 0.1`, `coef0 = 1.0`. This step is not trained.
-3. Fit an sklearn `LogisticRegression(max_iter=1000)` with its default `C = 1` on those features. **This is the only training.** Its logit is h(x), interpreted as the log density ratio log p₊(x)/p₋(x).
+The hook computes its integration steps before returning the final activation. The downstream transformer does not consume the internal integration trajectory. Identical final activations under the same model/cache context imply identical downstream behavior. Thus a path improvement can support hypothesis 2 without establishing hypothesis 1; it is a valid result rather than an after-the-fact consolation outcome.
 
-**At generation:** a forward hook on `model.model.layers[L]` (the decoder layer's output) replaces the activation at position −1 by integrating
+**Scope:** E2 depends on the score landscape restricted to the estimated manifold, not simply on Euclidean closeness to a target. In the horseshoe toy it stalls; E3 resolves that particular failure (§9.4). Neither has a general reachability guarantee. Near-antipodal starts may have a small tangent gradient and a slow/noisy start; keep 180° separate from the main 90°/120°/150° tests rather than assuming every concept has the toy's symmetry.
 
-    dx/dt = ∇h(x) / ‖∇h(x)‖,   t ∈ [0, T],   Euler, 10 steps of size T/10
+**Conditional geometry:** preserving membership in a colour manifold does not necessarily preserve saturation or lightness. Grey can be a valid on-manifold colour. Start with a hue curve at fixed saturation/lightness, and use other slices as controls. A dense hue sweep in the inputs does not prove that the model has a continuous activation curve.
 
-Position −1 means the prompt's last token during prefill, then every newly generated token (with the KV cache each step only sees the new token). Because the gradient is unit-normalised, T is the total distance moved.
+## 3. Background: ODESteer and classifier interpretation
 
-**Details that matter for this project:**
-- **Steering strength:** the yaml default is T = 1, but the paper uses T = 4–6 for Llama-3.1-8B (Table 5; Falcon-7B 20–23, Mistral-7B 3–4, Qwen2.5-7B 13–16), and the README example uses T = 5.
-- **Layer:** the code's `layer_idx = 13` counts from 0; the paper calls this layer 14.
-- **Gradient direction:** h is computed on the L2-normalised x, so the code applies (I − x̂x̂ᵀ)/‖x‖ and ∇h is always at right angles to x. ODESteer only rotates the activation; it never shrinks it.
-- **The classifier is smooth.** In the toy (§9.1) it reached only 83% training accuracy on a cleanly separable ring, and it labelled points "positive" only after they had left the data. **Never use h to judge success**; use the model's output.
-- **No stopping rule:** the barrier-function view is part of the paper's theory (it proves h increases along trajectories), not a termination condition.
+Source: [ODESteer code](https://github.com/ZhaoHongjue/odesteer), pinned by the toy setup to `8a3c481`; `src/odesteer/steer/_ode_steer.py`, `utils/kernels/`, `lm/_huggingface_lm.py`, and `confs/steer/ODESteer.yaml`.
 
-## 4. Method
+Offline, the frozen model supplies positive and negative last-token layer activations. Each is L2-normalized and transformed by a fixed random degree-2 polynomial count sketch (8000 features, gamma = 0.1, coef0 = 1). Logistic regression (`max_iter=1000`, default C = 1) is the trained component.
 
-### 4.1 Offline: what gets fitted (the LLM is frozen)
+The normalized gradient flow is integrated by Euler steps:
 
-All components are fitted on **the same prompt template and the same token positions that will be steered** (see the position-mismatch risk in §7).
+```text
+dx/dt = grad h(x) / ||grad h(x)||
+10 steps, step size T/10
+```
 
-| Component | How | Trained? |
-|---|---|---|
-| Concept activations | Run the LLM on concept prompts; keep the layer-L activation at the steered position | no |
-| Subspace U (d × k), mean μ | PCA on the concept activations (k chosen from the spectrum; check which PCs carry lightness vs hue for colours) | PCA only |
-| Local manifold model in z = Uᵀ(x − μ) | Stored projected points, used for kNN tangent estimates and a mean-shift retraction (bandwidth by cross-validation) | no, it just stores points |
-| Target score h(x) | ODESteer's recipe, unchanged: polynomial sketch + logistic regression, positive vs. negative | **yes, one logistic regression** |
+The original hook edits the last prompt token during prefill and each newly generated token thereafter. **This pilot edits only the last prompt token and evaluates the first answer token.** Fitting at that site does not establish applicability to subsequent generation positions.
 
-### 4.2 Generation: the only code change is the vector field
+Important implementation distinctions:
 
-    ODESteer:            v(x) = ∇h(x) / ‖∇h(x)‖
-    Ours (main):         z ← z + (T/n) · normalize( P_T(z) · Uᵀ∇h(x) )     # tangent step
-                         z ← z + bw² · ∇_z log p(z)   (repeat r times)       # retraction (mean shift)
-                         P_T(z) = projector onto the top-m local PCs of the kNN of z in the stored points
-    Ablation (additive): v(x) = U · ( â + λ · ĝ ),  â = normalize(Uᵀ∇h),  ĝ = normalize(∇_z log p(z))
+- The raw classifier logit estimates posterior log-odds. `log_dre(x)` adds `log((1-pi)/pi)`, with pi the training positive fraction, to estimate the log density ratio. `predict()` instead tests posterior probability > 0.5. Therefore `log_dre > 0` is equivalent to posterior probability > pi, not > 0.5.
+- All-negative `predict()` results in the seed-0 toys do not mean that the model learned nothing. Corrected ring positives and E2 endpoints pass `log_dre > 0`; training ranking is strong (§9.6). The prior term is constant, so it does not change gradient direction. The code also scales its gradient by a positive prior factor, which cancels in normalized directions.
+- Success is evaluated using toy ground truth or LLM output, independently of the steering score. Report held-out ranking, calibration, class balance and the restricted score landscape; classifier training accuracy alone is insufficient.
+- Because h uses normalized x, its gradient is orthogonal to x. The continuous flow preserves norm, but a finite Euler step increases squared norm by the squared step length. It is not an exact rotation.
+- T is the sum of proposed unit-gradient step lengths for B, up to numerical normalization. It is **not** the actual path length of E2 after its normal corrections. Measure actual movement, correction lengths, endpoint displacement, norm change and runtime.
+- The yaml default is T = 1; the paper's Llama-3.1-8B settings are around 4–6. Do not transplant toy T values to the LLM. Code layer index 13 probably corresponds to the paper's "layer 14" (inferred; the paper does not state its indexing); record exact zero-based hook indices for every pilot configuration.
 
-Integrate inside the same forward hook, at the same layer and position. Only the part of x inside the concept subspace changes; the rest of the activation is untouched. With U = I and the tangent projection and retraction disabled, it is ODESteer exactly.
+## 4. Method and required controls
 
-**Why not the original additive form `normalize(U(Uᵀ∇h + λ∇log p))`:** (1) the two terms have unrelated scales (∇h carries a 1/‖x‖ factor, ∇log p scales with 1/bandwidth²), so a λ grid is meaningless unless each term is normalised first; (2) even normalised, a density-gradient term pulls toward nearby dense data from every direction, including along the manifold, and in the toy it either traps the flow near its start (λ ≥ 1) or is too weak to stop it crossing the centre (λ = 0.3). Keeping only the component at right angles to ∇h fails the same way (§9.1). It stays in the study as an ablation.
+### 4.1 Fitted components
 
-Implementation: subclass `BaseODESteer` and override `steer` (the retraction is not a vector field, so `vector_field` alone is not enough). `fit` additionally stores U, μ, the projected points and the bandwidth.
+Fit only on training activations from the exact prompt template and token position being intervened on. Keep validation/test hex identities separate before fitting.
 
-## 5. Testbeds
-
-### 5.1 Validation check: weekdays (not a research result)
-
-**Purpose:** confirm that the pipeline, baselines and metrics are correct by reproducing published numbers before moving to concepts where the answer is unknown. A success here is an engineering check, not a finding.
-
-**What already exists for this exact task and model (Llama-3.1-8B):**
-
-| Work | What it shows |
+| Component | Construction |
 |---|---|
-| [Engels et al. 2024](https://arxiv.org/abs/2405.14860) | Days of the week form a circle in activation space; intervening inside that circle changes weekday-arithmetic answers |
-| [Wurgaft et al. 2026](https://arxiv.org/abs/2605.05115) | Weekdays are the main example. Spline steering through the 7 day-centres gives outputs 2.8× more natural (E_BC) than a straight line; activation-path vs output-path distance correlation r = 0.99 vs 0.89; reconstructing activation paths from desired outputs recovers the circle (R² 0.77 vs 0.42) |
-| [Riemannian-Manifold Steering](https://arxiv.org/abs/2605.24942) | Shortest paths under an output-based distance on "a standard four-task arithmetic benchmark" with no per-prompt labels (task list not confirmed; weekdays is probably one); reliably reaches the target with natural paths |
-| [causalab](https://github.com/goodfire-ai/causalab) `demos/weekdays_geometry` | Straight-line baseline: 49 prompts ("What day is four days after Sunday?"), model gets 45/49 right; answer day at the last token from layer 18 on (interchange accuracy 0.878 at L18, plateau 0.9184 from L25); a straight line between two answers passes through a third day on **14 of 22** pairs two days apart, **3 of 11** pairs three apart, **never** on the 10 adjacent pairs |
+| Mean μ and subspace U | PCA of training activations; choose dimension by causal donor-patching validation |
+| Local geometry | Stored projected points z = Uᵀ(x − μ), kNN local PCA, KDE bandwidth chosen on training/validation data |
+| Target score h | ODESteer's polynomial sketch and logistic regression |
+| Eligibility rule | Pre-intervention proximity/support test calibrated on validation data, including gray and unrelated controls |
+| E3 score, deferred | Shortest-path distance to a specified positive set on a kNN graph |
 
-**What we run:** reproduce the straight-line numbers (A) and spline steering (F), then run B, C and E2 once. Readout is a single token over 7 days, so the metrics in §5.3 apply directly. Start/target pairs: adjacent, distance 2, distance 3.
+Only the concept coordinates move in E2. The residual is preserved. A probe on that residual necessarily gives the same answer before and after intervention; it measures redundancy, not causal conflict. Test causal sufficiency using target-donor coordinate patches (§5.2).
 
-**Pass criterion:** A and F land close to the published numbers (14/22 crossings, E_BC gap of roughly 2.8×). If they don't, fix the setup before anything else.
+### 4.2 Current toy mechanism and pilot implementation requirements
 
-**What a success would add (small):** (1) the setup is trustworthy; (2) a modest methods point: E2 needs only a "target vs rest" classifier plus unlabelled activations, with no day-centres, ordering or trained encoder, so matching F under those weaker inputs is mildly interesting (it matches RMS on "no labels" and differs only on "no training"); (3) the first report of how ODESteer behaves on a curved concept. None of this is publishable on its own.
+The following is the existing toy mechanism, retained to explain the archived results. It is **not yet an acceptable zero-strength pilot implementation**:
 
-**Caveat specific to weekdays:** the manifold is **7 clusters with no data between them**, because every answer is one day. Splines *assume* a curve between the centres; E2 relies on data along the path. The nearest-neighbour tangent has nothing to fit in the gaps, and the retraction will snap the flow to the nearest day and hold it there (the same stalling seen in §9.1). So E2 may look worse here for a reason that does not apply to continuous concepts. Filling the gaps with prompts like "half a day after…" is possible, but it is unclear whether those states lie on the curve. Report E2's weekday result with this caveat and don't draw conclusions about the method from it.
+```text
+z = Uᵀ(x − μ)
+a = normalize(P_T(z) Uᵀ grad h(x))
+z = z + (T/n) a
+repeat r times:
+    z = z + (I − P_T(z)) bw² grad_z log p(z)
+x_new = x + U(z − Uᵀ(x − μ))
+```
 
-### 5.2 Testbed 1: colours (first real test)
+P_T is the projector onto the top m local PCs of the k nearest stored points. The normal correction is SCMS-style; local-PCA normals are an approximation rather than a basis for claiming exact density-ridge guarantees. Plain mean shift pulls along the manifold toward density bumps and stalls in the ring toy as r grows; keep it as a deferred ablation (§9.3).
 
-**Why colours:** hue is periodic. A path that cuts across the hue circle passes through desaturated colours; a path that stays on the surface goes around it. But see the caveats below; the geometry is richer than "a circle with grey in the middle".
+**The zero-strength problem:** the correction has no T factor and still changes x at T = 0. Seed-0 diagnostics moved noisy ring starts by median 0.063 R; grey-centre starts are bimodal, with 57–65% captured onto the ring (§9.6). Projecting an arbitrary activation onto a colour manifold can create the concept instead of preserving it.
 
-- **Prompt and readout:** use causalab's `hex_color` task: `"Question: Which color name best describes the hex code {hex}? Choose one of: red, orange, yellow, green, blue, purple.\nAnswer:"`. All six answers are single tokens, the answer variable is set up as periodic hue (red 0°, orange 30°, yellow 58°, green 120°, blue 235°, purple 285°), and 600 bundled stimuli exist. Read the hue off the 6-way output distribution instead of parsing generated hex. (Indigo was dropped because Qwen3-4B could not separate it from purple.)
-- **Manifold data:** [goodfire-ai/sae-manifold](https://github.com/goodfire-ai/sae-manifold) builds colours from [`burkelibbey/colors`](https://huggingface.co/datasets/burkelibbey/colors) with `"The hex code {hex} is for the color"`, Llama-3.1-8B layer 19, every 10th row, lightness and saturation both in [0.2, 0.8]. Note that `burkelibbey/colors` has **no clean colour names** (33,887 rows of `hex` + a generated description such as "Very dark blue: A nearly black shade…"), so a name → hex direction would need name extraction and would be many-to-one. Refit on the exact `hex_color` template and steered position.
-- **Geometry check first:** sae-manifold describes colours as a **paraboloid** over hue, lightness and saturation, so a 3-component PCA will mix in lightness. Plot PC pairs coloured by hue, lightness and saturation, and project grey-type colours into the subspace to check they really sit at the centre before using saturation as a metric.
-- **Target h:** positive = stimuli labelled red; negative = all other colours. Report the neighbour colours separately (the negative class includes orange and purple).
-- **Starting points:** green (120° from red) is a *weak* test: a straight flow from there only dips to ≈ 0.87 R (toy: 0.88 R). Use cyan / blue-green starts (≈ 180°) for the strong "passes through grey" prediction, and treat them as the antipodal condition (§2).
-- **Sweep:** T calibrated against ‖x‖ at the chosen layer (paper scale for Llama-3.1-8B is T ≈ 4–6), and for the ablation λ ∈ {0.1, 0.3, 1, 3} with both terms normalised.
+Before using E2 in the pilot:
 
-**Why colours come first:** hue is continuous in the data, so E2's tangent and retraction steps have points to work with along the whole path, and there is ground truth (the hex code) for every stimulus.
+- Make the deployed operation exactly the identity at T = 0. Separately retain a **retraction-only diagnostic control**, with zero directional step and the same correction count, to expose the correction's own effect.
+- Check a sequence of small positive T values. An early return at zero alone is insufficient: total displacement must approach zero as T approaches zero. Choose and document a correction budget that vanishes with strength; the precise rule is an implementation decision still to be tested.
+- Freeze a near-manifold eligibility rule on validation data, applied to the original activation before any correction. Reject unsupported starts rather than pulling them onto the fitted concept. Monitor departures during integration and define a bounded fallback; do not silently repair arbitrary excursions.
+- Report eligibility coverage and rejected cases. Compare methods on the same eligible set and also report full-set results with a declared fallback, so selection does not create a spurious advantage.
+- Validate prompt/token support as well as projected proximity. An unrelated activation can project near the curve while having an incompatible residual. No claim about steering every generated token is warranted yet.
 
-### 5.3 Conditions, metrics and analysis (shared by all testbeds)
+With U = I and all geometry operations/gating disabled, the baseline integration must recover ODESteer at the same step count. Implement via `BaseODESteer.steer`, since corrections are not captured by replacing a vector field alone. Safeguards may change toy results; identify the implementation version rather than reusing archived numbers as validation of a new algorithm.
 
-#### Conditions (ablations separate the changes)
+### 4.3 E3 and optional variants
 
-| | Subspace restriction U | On-manifold mechanism |
-|---|---|---|
-| A. Linear steering (CAA-style mean difference) | – | – |
-| B. ODESteer | full space | none |
-| C. Projection only | U | none |
-| D. Density only | full space | additive normalised density term |
-| E1. Additive (original proposal) | U | additive normalised density term, λ sweep |
-| E2. **Ours** | U | tangent projection + mean-shift retraction |
-| F. Reference: spline manifold steering (Wurgaft et al.: cubic splines through class centroids in a 64-D PCA) | n/a | n/a |
-| G. Reference: pullback-Hellinger geodesics (Riemannian-Manifold Steering), if code is available | n/a | n/a |
+E3 assigns each stored point a negative shortest-path distance to the target set and estimates a local direction of increasing score. Target sets may use labels, a validated density-ratio threshold, or a predeclared high-score subset; labeled positives are not required. A raw `predict()` threshold would be empty in the seed-0 toys. High-score selection must specify its threshold or count and be validated independently.
 
-#### Metrics
+Discrete graph routes have monotone shortest-path scores; local smoothing, tangent projection and finite corrections do not automatically preserve that property. The current `graph_dir` computes cross-covariance rather than a general least-squares slope. After one-dimensional tangent projection and normalization directions can coincide; a higher-dimensional implementation needs an explicit estimator.
 
-| Metric | Measures |
+Keep E3 for a measured score/topology failure after E2's causal gate passes. Deferred ablations are additive density guidance (E1), plain mean shift (E2-ms), step halving (E2-h), and residual motion (E2-full). Additive terms need separate normalization because classifier and density-gradient scales differ. E2-full would use the change in a kernel regression of full x on z; adopt it only after causal patching demonstrates the need, not merely because a residual probe decodes the source.
+
+## 5. Active pilot: colours
+
+### 5.1 Readout and data
+
+Use one pinned Llama-3.1-8B checkpoint, recording base versus instruct and exact token formatting. Start from causalab's task:
+
+```text
+Question: Which color name best describes the hex code {hex}? Choose one of: red, orange, yellow, green, blue, purple.
+Answer:
+```
+
+The existing fixture was validated on Qwen3-4B; validate the chosen Llama checkpoint rather than assuming transfer. First run 50–100 prompts. **Hardware (open decision):** Llama-3.1-8B needs ≈ 16 GB in bf16, so this cannot run on the current 8 GB machine; use a GPU with ≥ 24 GB or a CPU host with ≥ 32 GB RAM. Quantizing to fit would change activations and break the pinned-checkpoint requirement. Validate the six-way readout and an extended eight-way version with gray and brown separately. The earlier screening criterion was extended chromatic accuracy at least 90% of six-way accuracy, plus correct gray/brown responses on controls; also require useful absolute performance and adequate answer-token probability. Freeze acceptance criteria before evaluating the full pilot.
+
+Leading-space answer words, including gray/grey/brown, were checked as single tokens in the Llama-3.1 tokenizer. Recheck the exact checkpoint/context and aggregate valid spelling/case variants. Keep an **other** bin for all remaining vocabulary probability; do not renormalize away invalid answers.
+
+For the first red-target classifier, label training sweep stimuli positive when the unsteered model answers red, and negative otherwise, so the target matches the measured readout. Report the resulting hue range, class balance, and behavior on neighboring orange/purple stimuli. Use the same target labels for classifier-based controls and keep target-success evaluation on held-out model outputs.
+
+For the expanded pilot, generate approximately 2,000–3,000 distinct hex stimuli spanning dense hue sweeps at a few saturation/lightness levels, plus gray/brown controls. Specify the colour-coordinate convention and actual levels. Use one fixed saturation/lightness slice for the main hue curve; fit and evaluate other slices as separate conditional controls. Keep splits by hex identity, including near-boundary examples; reserve a small second template for later generalization checks.
+
+The bundled 600 causalab stimuli form six narrow hue clusters (about ±6° around class centres), so they cannot supply tangents through the gaps. Use them for readout checks and held-out evaluation after deduplication against the generated data. Main starts 90°, 120° and 150° toward red need generated stimuli; 150° gives a stronger toy contrast than 120°. Keep 180° separate. Verify the model's unsteered answers and local activation continuity at all these starts.
+
+[sae-manifold](https://github.com/goodfire-ai/sae-manifold) uses a different colour template and layer 19; its colour geometry includes hue, saturation and lightness rather than a universal hollow ring. Use it to motivate candidate sites, not to reuse a mismatched manifold. The `burkelibbey/colors` dataset has hex codes and generated descriptions, not clean unique colour names. Plot PCs against all colour coordinates and include grey controls before interpreting geometry.
+
+### 5.2 Causal gate: patch real donor activations first
+
+Cache a few candidate layers around the previously studied colour and late-answer sites; record exact zero-based indices. Fit PCA on training data only. Compare k = 8, 16, 64 using validation data, with a smaller exploratory k only if warranted.
+
+For source x_s and a real target donor x_t at the same site, apply:
+
+```text
+subspace donor patch: x_s + U Uᵀ(x_t − x_s)
+full donor patch:     x_t
+```
+
+Prefer donors from the same saturation/lightness slice. The full patch is a diagnostic upper control, not a fair low-side-effect steering competitor. Check changes in answer probabilities, output validity and whether neighboring hues remain neighbors across splits.
+
+If full donor patching fails, debug the hook/readout. If full patching works but subspace patching consistently fails across the candidate configurations, the current E2 architecture has failed its causal gate; do not launch tangent/retraction sweeps. Select one layer and k on validation data only after this test passes. Decodable hue or a pleasing PCA plot is insufficient.
+
+### 5.3 Conditions, metrics and analysis
+
+Run a small comparison first; hold classifier/data, source prompts, intervention site and eligibility set fixed where applicable. Acknowledge spline ordering information and any method-specific fitting costs.
+
+| Condition | Purpose |
 |---|---|
-| Target success: argmax output = target class (weekdays / 6 colours) | does it get there |
-| Cumulative output energy E_BC = ∫ d_BC(γ(t), M_y) dt (Bhattacharyya distance to the behaviour manifold, Wurgaft et al.) | naturalness of the output path (**primary**) |
-| Pass-through count: does the argmax visit a non-adjacent class along the path (weekdays); minimum saturation of the output hue (colours, after the geometry check) | does it cut across |
-| Isometry: correlation of geodesic distances on M_h and M_y along the path | does activation movement match behaviour movement |
-| Output trajectory (hue / day) vs. t | around or across |
-| Perplexity of free continuations under the unsteered model | fluency |
-| Off-target KL on unrelated prompts (same hook, same T) | side effects (compare with FishBack / dual steering numbers) |
-| log p(z) along the path | on-manifold sanity check (E1/E2 optimise it by construction) |
-| ‖Uᵀ∇h‖ / ‖∇h‖ per layer | how much of ODESteer's direction lies in the subspace; if small, C mostly just shortens the step |
+| Unsteered | Original behavior and exact no-op reference |
+| A: CAA | Linear mean-difference reference |
+| R0: retraction only, zero directional step | Measure effects of correction independent of target guidance; diagnostic exception to deployed no-op rule |
+| B: ODESteer | Intended unconstrained baseline |
+| C: unit-normalized projected ODESteer | Is subspace restriction sufficient? Normalize after projection |
+| C-end: C followed by endpoint-only normal correction | Is repeated manifold following necessary? |
+| E2: tangent projection plus bounded normal correction | Main proposed method, with §4.2 safeguards |
+| F: spline path in the same intervention subspace | Does a known curved path work with matched residual handling? |
+| S: norm-preserving spherical flow using the same probe | Does norm control explain the advantage? GeoSteer-style comparator |
 
-**Comparisons:** primary = **matched target success**. Also report matched T (equal distance moved; this penalises curved paths, which spend their budget going around) and matched endpoint displacement ‖x_T − x_0‖.
+For C-end use the same normal-correction primitive, with its budget chosen on validation data, and report correction cost. For F, hold the orthogonal residual fixed as for C/E2. Wurgaft's published full-space linear versus PCA-manifold comparison uses different residual handling; reproducing its number and isolating geometry are distinct comparisons.
 
-**Statistics:** all prompts per start/target pair (49 weekday prompts; 100 stimuli per colour), ≥ 3 seeds for the random sketch and data splits, bootstrap 95% CIs, paired comparisons across conditions on the same prompts.
+Start with one default neighborhood/retraction configuration and a short validation T grid. Use 10 integration steps for B/C/E2 initially, reflecting the original ODESteer setup. Test 40 steps at selected operating points only if discretization could explain a difference. Record m, neighbor count, bandwidth, correction budget and r. Save intermediate states; decode a common fixed number of checkpoints for path comparisons. A wider r ∈ {1, 3, 10, 30} sweep is a later sensitivity check, not the first job.
 
-#### How to read the outcomes
-
-| Result | Meaning |
+| Metric | Role |
 |---|---|
-| E2 stays on the manifold and reaches the target; B cuts across or breaks | The constraint makes the flow follow the concept's real shape. The mechanism works |
-| Everything cuts across | The internal geometry doesn't drive the output at this layer/position, or the manifold fit is wrong; check against F |
-| Everything goes around | ∇h already follows the curve; the manifold adds nothing for this concept |
-| C ≈ E2 | The benefit comes from the subspace restriction, not the on-manifold mechanism |
-| E2 ≈ F on E_BC | ODESteer-on-manifold matches supervised spline steering without needing class centroids |
-| E2 stalls from antipodal starts | Expected (§2); report separately |
-| E2 stalls or snaps to a day on weekdays but works on colours | Expected: weekdays have no data between the 7 days (§5.1); not evidence against the method |
+| Target argmax and target probability | Success, independent of h |
+| Endpoint output deviation from held-out natural target distributions | Primary quality metric for the endpoint hypothesis; fix the reference and distance before testing |
+| Path output deviation from an independently fitted natural behavior reference | Primary for the path-control hypothesis; use Bhattacharyya/Hellinger geometry and common checkpoint count/parameterization |
+| Gray, brown and other probability | Separate output diagnostics at endpoint and along path |
+| Circular concentration ρ | Secondary uncertainty/concentration diagnostic, not physical saturation |
+| Distance to independent reference activations, in full space and concept coordinates | Support diagnostic, normalized to natural held-out distances; training KDE density alone is insufficient |
+| Actual path length, correction lengths, endpoint displacement and norm change | Separate geometry from numerical budget |
+| Zero/small-T displacement, eligibility coverage and rejection behavior | Required intervention validity checks |
+| Wall time, per-token overhead and fitting cost | Practical tradeoff |
+| Residual hue probe | Optional redundancy diagnostic; causal gate remains donor patching |
 
-## 6. Phases
+Define ρ = |Σ_c p_c exp(iθ_c)| using chromatic options at centres red 0°, orange 30°, yellow 58°, green 120°, blue 235°, purple 285°, with p retaining gray/brown/other mass. Uneven centres and ordinary boundary uncertainty affect ρ; a mixture of chromatic predictions can lower it without representing grey, and brown can be chromatic. Compare to natural boundary examples rather than labeling every decrease as damage.
 
-0. **CPU sanity check (this machine).** Reproduce the toy (§9.1) as a unit test for the steering code. Then a small model: Gemma 3 270M / Qwen2.5-0.5B are probably too weak for the colour readout; the `hex_color` task was validated on Qwen3-4B-Instruct (≈ 16 GB in fp32 on CPU). Go/no-go: does a periodic structure appear at some layer, and does steering change the argmax at all?
-1. **Weekdays validation check on Llama-3.1-8B (GPU, ≥ 40 GB), short.** Start from causalab's weekdays demo (it harvests at layer 25, last token; ODESteer's layer 14 is before the answer appears at L18). Reproduce A and F against the published numbers, then run B, C and E2 once (§5.1). *Contributes:* confidence in the setup only.
-2. **Colours on Llama-3.1-8B** with the `hex_color` prompt: the first real test of the method. Pick layers by sweeping (sae-manifold uses 19, the manifold-steering paper 28). *Contributes:* evidence that E2 follows a continuous concept manifold where splines and geodesics also apply; a head-to-head with F (and G if available).
-3. **Emotion (first result that could be a genuine contribution):** valence-arousal plane following [Sun et al. 2026](https://arxiv.org/abs/2604.03147) (PCA + ridge regression over ≈ 44.7k words; Llama-3.1-8B, Qwen3-8B, Qwen3-14B). Steer angry → calm. **Caveat:** Sun et al. report that VA steering changes refusal *through* the refusal/compliance tokens themselves ("lexical mediation"), so a refusal change is an expected effect, not a side effect; measure side effects on something else (e.g. unrelated-prompt KL, task accuracy). *Contributes:* here the target is defined by a classifier (angry vs calm) and there are no class centres or ordering to fit, so the spline and RMS methods don't apply directly; "ODESteer kept on the manifold gives fewer side effects at the same success rate" would be new.
-4. **Unsupervised manifold:** replace PCA-on-labels with an SAE feature cluster from sae-manifold (Ising + Leiden). Candidate SAEs: `Goodfire/Llama-3.1-8B-Instruct-SAE-l19`, Gemma Scope 2. Optionally compare with BSF. *Contributes:* removes the need for concept labels to build U.
-5. **ODESteer benchmarks:** TruthfulQA and RealToxicityPrompts. **Open:** these have no obvious concept manifold, so first define U (e.g. PCA of the positive + negative activations) and say what "on-manifold" means there. Toxicity evaluation needs a Perspective API key. *Contributes:* shows the constraint doesn't cost task performance on ODESteer's own benchmarks.
-6. **Honesty (open question):** check whether honesty features form anything richer than a line. Seed with Neuronpedia "lying" and "deception" features on Gemma 3 plus Gemma Scope 2, and use Apollo or Geometry-of-Truth data. If honesty is linear, this method adds little there; that is itself a result.
+For E_BC-style path evaluation, define the natural reference and checkpoint rule before testing. The published weekday protocol sums distances at 50 waypoints; a raw integral over method-specific T is not a comparable naturalness score. A reference fitted from dense unsteered colour outputs should be independent of steering/test fitting and should not privilege a particular interpolant without a sensitivity check.
+
+Choose operating strengths on validation data to approach a predeclared success level (80% is a candidate, not yet frozen), then freeze them for test. Report success/quality frontiers too: a method that misses the threshold has no matched-success operating point. Report nominal T, measured length and endpoint displacement separately; equal T does not mean equal distance for E2. Use paired prompt comparisons, at least three fitted seeds for the confirmatory pilot, and prompt-level bootstrap intervals with seed variation reported separately; nested start samples are not independent fitted worlds.
+
+Before outcome inspection, define a practically useful improvement and the analysis for both hypotheses, including multiple comparisons if both are tested. **20% lower endpoint deviation is only an illustrative project threshold, not a fixed or evidence-based criterion.** Define a separate path-control threshold if that objective is pursued. Require consistent direction across seeds and confirm another target hue before expanding.
+
+### 5.4 Reading outcomes and continuation
+
+| Observation | Decision |
+|---|---|
+| E2 improves endpoint quality at comparable success over C, C-end and S | Continue the endpoint hypothesis; confirm another target and later generation task |
+| E2 improves path quality alone | Continue the predeclared path-control objective if its criterion is met; no generation-quality claim |
+| C or C-end matches E2 on the relevant metric | Prefer the simpler method; repeated manifold following has not earned its cost |
+| S explains the gain | Norm preservation is sufficient for this result; empirical concept geometry has not added value |
+| Only training-density metrics improve | Insufficient evidence of useful control |
+| R0 causes much of the apparent effect | Attribute it to correction, not target guidance; examine off-concept damage |
+| Full patches work but subspace patches fail | Reconsider the representation before tuning steering |
+| E2 stalls with useful causal geometry and a measured score obstruction | Add E3 as a targeted follow-up; do not assume a guarantee |
+| Gating rejects most intended inputs or misses unrelated activations | The applicability claim fails; avoid blanket per-token deployment |
+
+## 6. Execution order and deferred extensions
+
+### 6.1 Run now
+
+1. **CPU preflight:** implement/check no-op and small-strength behavior, R0 and eligibility diagnostics. Existing toys already justify a real-model check; avoid another broad shape sweep. Verify that geometry-disabled code reproduces the baseline and preserve archived results separately from revised algorithms.
+2. **Smoke test on the pinned Llama-3.1-8B checkpoint:** 50–100 colour prompts, readout validation and a small donor-patching check. Needs ≥ 16 GB for bf16 weights (§5.1; not this 8 GB machine). Do not substitute a smaller checkpoint unless it separately passes the readout gate.
+3. **Expanded colour pilot after the gate passes:** dense activation collection and the §5.3 comparison on one checkpoint/site. PCA, classifiers, graph operations and analyses are CPU-friendly; a GPU is preferred for thousands of model forwards. Freeze settings on validation, then run the confirmatory test.
+4. **Continue only against the predeclared hypothesis:** confirm another target hue and a held-out prompt template before broader tasks. Report failures as well as successful gates.
+
+### 6.2 Conditional follow-ups, not current milestones
+
+- **Weekdays:** optional tiny hook/readout smoke test; defer full reproduction. The causalab 49-prompt demo and Wurgaft's published path protocol differ in sites and interventions. Reproduce exact settings before demanding its crossing counts or 2.8× energy ratio. Seven answer clusters have gaps that disadvantage local tangents. A weekday result alone does not settle continuous-manifold steering.
+- **Geometry-driven E3:** introduce only after diagnosing the restricted score or graph need. A semantic country/continent hierarchy does not establish a branched activation manifold; measure support and topology first. A branch junction is not a smooth one-dimensional manifold.
+- **Emotion or another practical behavior:** first show an appropriate manifold at the actual generation sites and validate eligibility. [Sun et al.](https://arxiv.org/html/2604.03147) derive VA directions from emotion-label ratings and study projected emotion steering vectors. The 44,728-word NRC-VAD lexicon is a word-projection validation resource; generated text is scored with VAD-BERT and VADER. A circle of steering vectors is not proof that individual token activations form a hollow ring. Neutral states can be natural, and lexical-average angles/minimum radius are not prevalidated success/naturalness metrics. Choose start/target pairs from measured geometry, and validate text-level metrics before preregistering them. Measure content preservation and unrelated task performance; refusal changes can be part of the intended affect mechanism.
+- **SAE-discovered geometry:** possible route to less hand-specified concept subspaces, using sae-manifold clustering or related tools, after the basic method demonstrates value. The classifier and geometry still require fitting; do not claim training-free operation.
+- **TruthfulQA/RealToxicityPrompts and honesty:** conditional on a defined, causally useful intervention space and token-support rule. There is no established manifold here in this plan. Determine dataset/service access and evaluation needs when this phase is justified; linear geometry may make E2 unnecessary.
+
+Colour success establishes feasibility. A stronger methods paper would need an advantage over existing geometric controls and generalization to another concept or task; path-control and generation papers can have different valid endpoints.
 
 ## 7. Risks and open decisions
 
-- **Choice of U is the fragile step.** If the target isn't inside U, the flow can't reach it (C/E fail while B succeeds). That failure is informative: it says whether the concept lives in the subspace.
-- **Antipodal starts have no preferred direction** for any manifold-constrained gradient flow (§2, §9.1). Options if needed: a small tie-breaking tangent bias, or a two-point geodesic (F/G) instead of a gradient flow.
-- **Local tangent estimates and KDE don't scale** to large k; then switch to a GMM, a learned score model or a learned chart (e.g. Riemannian-Manifold Steering's encoder).
-- **Step-size scale** depends on activation norms per layer; calibrate T against ‖x‖.
-- **Which positions to steer:** ODESteer steers position −1 at each step. Keep that for comparability, and fit the manifold at those positions.
-- **Position mismatch:** the manifold and the steered position must use the same template and token; the original plan fitted on `"The color {name}"` and steered at `…hex code is #` and the generated hex tokens.
-- **Readout noise:** use single-token multiple-choice readouts (weekdays, `hex_color`), not parsed hex.
+- **Support and conditioning:** a pooled data manifold can permit exactly the saturation/lightness changes the application wants to forbid. Fixed-template, fixed-token and conditional-slice fitting are part of the initial scope.
+- **Retraction and eligibility:** support membership does not follow from projected distance alone; zero/small-T behavior and gate coverage are go/no-go checks (§4.2), especially before any every-token claim.
+- **Causal sufficiency versus redundancy:** residual decodability alone is not interference. Donor patches distinguish an unusable subspace from redundant coding. Higher k can improve control while making local density/tangent estimation less reliable.
+- **Score/topology:** classifier gradients can stall; discrete graph scores can shortcut, disconnect or produce poor continuous directions. Normalizing a tiny tangent gradient can amplify noise. Define numerical thresholds and fallback behavior on validation data.
+- **Finite steps and cost:** correction lengths and step count confound nominal T. Fixed steps can hover at the target; record the effect, and apply any stopping/step-control comparison fairly to B as well as E2.
+- **Readout and evaluation:** colour classification uncertainty is not desaturation. Preserve other-token mass, validate boundary examples and keep evaluation reference data independent of method fitting. Separate selection and test data.
+- **Extrapolation:** support constraints intentionally limit access to unobserved regions; improved on-support control is not a promise of novel concept combinations.
+- **Scale:** kNN/KDE can become unreliable at large k or sparse sample counts. A learned geometry model is a possible redesign, not an automatic extension of a successful low-dimensional pilot.
+- **Open implementation decisions:** correction budget vanishing with T, gate calibration/fallback, initial neighborhood and m, exact checkpoint/layer convention, output-reference estimator, and practical thresholds must be fixed and recorded before confirmatory evaluation.
 
 ## 8. Related work and novelty
 
-| Work | What it does | Relation to this plan |
-|---|---|---|
-| [Wurgaft et al. 2026, Manifold Steering](https://arxiv.org/abs/2605.05115) ([html](https://arxiv.org/html/2605.05115), [blog](https://www.goodfire.com/research/manifold-steering)) | Cubic splines (thin-plate for 2-D) through class centroids in a 64-D PCA, Llama-3.1-8B layer 28, K = 50 points per path; behaviour manifold in Hellinger space; E_BC metric (manifold 2.8× lower than linear); isometry correlations; pullback optimisation recovers M_h. **Definition 1 includes a density-weighted metric (αe^{−E(h)}+β)⁻¹I with E ∝ −log p.** | Closest prior work; source of condition F and the primary metrics. The density idea is not new |
-| [Riemannian-Manifold Steering, 2605.24942](https://arxiv.org/html/2605.24942v2) | Pulls output-space Hellinger distance back to activations with a learned encoder; geodesic steering without per-prompt labels; linear and spline steering as special cases | Direct competitor (condition G) |
-| [Curveball Steering, 2603.09313](https://arxiv.org/pdf/2603.09313) | Polynomial kernel PCA steering; measures geodesic-to-Euclidean distortion per concept | Curved steering baseline; its distortion measure can pick concepts where curvature should matter |
-| [FishBack, 2605.17231](https://arxiv.org/pdf/2605.17231) | Closed-form direction from the Fisher metric pulled back to the layer; 1.4–6.5× lower off-target KL | Side-effect baseline |
-| [Park et al., Information Geometry of Softmax (ICML 2026)](https://arxiv.org/html/2602.15293v2) ([code](https://github.com/KihoPark/dual-steering)) | Dual steering, provably minimises off-target change | Side-effect baseline |
-| [FLAS, 2605.05892](https://arxiv.org/pdf/2605.05892) | Learned concept-conditioned velocity field; curved, token-varying trajectories; beats prompting on AxBench | Learned-flow alternative |
-| [UniSteer, 2605.30076](https://arxiv.org/html/2605.30076v1) | Text-conditioned flow matching over residual activations | Learned-flow alternative |
-| [Steered LLM activations are non-surjective, 2604.09839](https://arxiv.org/abs/2604.09839) | Proves steering pushes activations off the set reachable from prompts | Motivation for on-manifold steering |
-| [When is your LLM steerable?, 2606.11599](https://arxiv.org/abs/2606.11599) | Predicts steering efficacy from early hidden states | Possible analysis tool |
-| Diffusion guidance: [MPGD](https://arxiv.org/abs/2311.16424), [DPS](https://arxiv.org/abs/2209.14687), [MCG](https://arxiv.org/abs/2206.00941) | Manifold-preserving / manifold-constrained guidance; MPGD projects guidance onto the data tangent space | E2 is the MPGD analogue |
-| [Engels et al. 2024](https://arxiv.org/abs/2405.14860) | Circular features (days, months) | Origin of the weekday circle |
+| Work | Verified relevance / role |
+|---|---|
+| [ODESteer](https://arxiv.org/abs/2602.17560) | Original classifier-guided flow and main baseline |
+| [Wurgaft et al., Manifold Steering](https://arxiv.org/html/2605.05115) | Spline paths and density-weighted geometry; Llama-3.1-8B layer 28, 64-D PCA steering and 3D visualization. Published path evaluation uses 50 waypoints and retains other-token mass. Its linear/full-residual versus manifold/PCA-residual handling needs a matched-subspace control here |
+| [GeoSteer](https://arxiv.org/html/2609.10658) | Method §3.2 verified: polynomial-count-sketch probe, spherical tangent gradients and exact geodesic norm preservation. Direct control for whether data-estimated geometry adds value; benchmark results have not been independently reproduced |
+| [Riemannian-Manifold Steering](https://arxiv.org/html/2605.24942v2) | Output-Hellinger pullback geometry with a learned encoder, no per-prompt labels. Reports weekdays, months, letters and ages; path-naturalness gains hold on the smaller two output spaces, not all four. Potential later reference if implementation is available |
+| [Curveball](https://arxiv.org/abs/2603.09313) | Polynomial-kernel-PCA steering and geometric-distortion analysis; nonlinear steering is established prior work |
+| [Engels et al.](https://arxiv.org/abs/2405.14860) | Circular weekday/month features and causal interventions |
+| [Sun et al.](https://arxiv.org/html/2604.03147) | VA/emotion evidence; distinguish fitted directions, class vectors and token activation support (§6.2) |
 
-## 9. Design review notes (2026-09-19)
+Additional leads, not relied on for quantitative claims in the pilot: [FishBack](https://arxiv.org/abs/2605.17231), [dual steering](https://arxiv.org/html/2602.15293v2), [FLAS](https://arxiv.org/abs/2605.05892), [UniSteer](https://arxiv.org/abs/2605.30076), [non-surjective steering](https://arxiv.org/abs/2604.09839), and [steerability prediction](https://arxiv.org/abs/2606.11599). Recheck methods and quantitative claims before comparing. Diffusion analogies include [MPGD](https://arxiv.org/abs/2311.16424), [DPS](https://arxiv.org/abs/2209.14687), [MCG](https://arxiv.org/abs/2206.00941), and the [SCMS reference](https://jmlr.org/papers/v12/ozertem11a.html); their precise applicability is not a theorem supplied by this plan.
 
-### 9.1 Toy simulation
+E3 resembles classic graph-geodesic/Isomap ideas and existing geodesic steering. It has no established novelty claim here. Search this literature specifically before writing up an E3 contribution. Neither estimating an unknown shape nor avoiding a fixed output-token schema guarantees an advantage over a suitably adapted baseline.
 
-Synthetic check of the mechanism, not evidence about any LLM. Setup: a hue ring of radius R = 3 in a 3-D subspace (plus a lightness axis) of a 256-D space, mean offset of norm 20, isotropic noise 0.3, 3000 points; positive = hue within ±30° of red. Classifier = ODESteer's own `NormedPolyClassifier` (8000 features, gamma 0.1, coef0 1); training accuracy 0.83. KDE bandwidth by 5-fold CV: 0.23. 64 starts per condition.
+## 9. Synthetic evidence and source checks
 
-| Condition | From green (120°): lowest radius / R | From cyan (180°): lowest radius / R | Where the flow ends (T = 8) |
+The original sweeps below are from committed [`toy/ring_toy.py`](toy/ring_toy.py), [`toy/run_all.py`](toy/run_all.py), and [`toy/geometries.py`](toy/geometries.py). Full results: [`tables.md`](toy/results/tables.md) and [`geometries.md`](toy/results/geometries.md), with raw rows alongside them. `toy/setup.sh` fetches ODESteer at `8a3c481`; it is not vendored because the repository has no license file.
+
+Sections 9.1, 9.3 and 9.4 summarize **three fitted worlds × two sets of 32 noisy starts**. Ring runs use 40 Euler steps; horseshoe/Y runs use 60; original ODESteer uses 10. These are mechanism checks, not LLM evidence, and use the unguarded correction in §4.2. The separate seed-0 review diagnostics in §9.6 were run interactively and are not regenerated by the committed sweep scripts.
+
+### 9.1 Ring toy: initial mechanism checks
+
+Setup: a hue ring of radius R = 3 plus a lightness axis in a 3-D subspace of a 256-D space, mean offset of norm 20, isotropic noise 0.3, 3000 points; positive = hue within ±30° of red. Classifier = ODESteer's `NormedPolyClassifier` (8000 features, gamma 0.1, coef0 1); posterior-threshold training accuracy 0.831–0.836 across worlds (interpretation corrected in §9.6). KDE bandwidth by 5-fold CV: 0.228.
+
+Success (final hue within ±30° of red) and lowest radius ÷ R, T = 8 unless stated:
+
+These archived conditions include D (the full-space classifier direction plus a normalized density term in U) and E1 (the corresponding additive combination restricted to U). The ⟂ variant removes the density term's component along the classifier direction. They are not additional required arms of the first real-model pilot.
+
+| Condition | From 120°: success · radius | From 180°: success · radius | Notes |
 |---|---|---|---|
-| B: ODESteer | 0.88 | 0.16 | red-ish, but off the data (log p = −103 from green) |
-| C: projection only | 0.84 | 0.15 | same as B |
-| D: density only | 0.98 | 0.93 | leaves the subspace; never reaches red |
-| E1, λ = 0.3 | 0.93 | 0.23 | cuts across the centre |
-| E1, λ = 1 or 3 | ≥ 0.97 | ≥ 0.84 | stuck partway (hue 35–118°) |
-| E1 with density term orthogonal to ∇h | ≥ 0.97 | 0.37–0.86 | same trade-off: either crosses or stalls |
-| **E2: tangent projection + retraction** (T = 10) | 0.97 | 0.94 | reaches red from green (hue ≈ 2°, on the ring); stalls from cyan (hue 153–165°) |
+| A: CAA (linear) | 1.00 · 0.87 | 1.00 · 0.09 | ends off the data (log p −100 from 120°) |
+| B: ODESteer | 1.00 · 0.88 | 1.00 · 0.09 | ends off the data (log p −85); ≈ A and C in this toy |
+| C: projection only | 1.00 · 0.88 | 1.00 · 0.09 | same as B |
+| D: density only, λ = 1 | 0.00 (0.80 at T = 10) · 0.94 | 0.00 · 0.90 | drifts out of the subspace (up to +3.4 off-plane) |
+| E1, λ = 0.3 | 1.00 · 0.94 | 1.00 · 0.19 | crosses the centre from 180°; ends off the data |
+| E1, λ = 1 | 0.29 (0.99 at T = 10) · 0.94 | 0.00 · 0.81 | on the data from 120°; stuck from 180° (hue 94–124°) |
+| E1, λ = 3 | 0.00 · 0.96 | 0.00 · 0.95 | stuck near the start at every T (hue 119–163°) |
+| E1 ⟂ (density term at right angles to ∇h), λ = 1 / 3 / 10 | 1.00 / 0.03 / 0.00 | 0.93 / 0.00 / 0.00 · radius 0.34 / 0.51 / 0.75 | either crosses or stalls |
+| E2 first version (plain mean shift, r = 3), T = 10 | 0.97 · 0.95 | 0.20 · 0.93 | on the data; slow from 180° |
 
-Also observed: the classifier labelled the on-ring red endpoint of E2 as "not red", and B's off-manifold endpoints as "red". Success must be judged from the model output, not from h.
+The archived `clf_pos` columns use the posterior threshold 0.5, without the class-prior correction in `log_dre`. Their positive/negative contrast is not evidence that the density-ratio score rejects real red states; see §9.6. Use geometric ground truth for toy success and the model output for LLM success.
 
-Scripts (scratch, not committed): `toy/ring.py`, `toy/ring_perp.py`, `toy/ring_tangent.py`. Worth porting into the repo as a unit test in phase 0.
+### 9.2 Current interpretation of the toy evidence
 
-### 9.2 Summary of changes from the first draft
+The additive-density and plain-mean-shift failures motivate the tangent/normal split. The toy antipodal condition is a slow start, not a universal stall. E3 resolves the tested horseshoe failure but changes the score as well as the constrained path. No toy tests language-model output quality, causal sufficiency of a real concept subspace, or support across generated token positions.
 
-1. Main method changed from an additive density term to tangent projection + retraction; the additive form is kept as ablation E1 with both terms normalised.
-2. Antipodal starts added as a separate condition with an explicit "no preferred direction" caveat.
-3. Weekdays (causalab) added as a short validation check only (§5.1): the manifold-vs-straight-line result on weekdays is already published (Engels, Wurgaft, RMS), and weekdays have no data between the 7 days, which disadvantages E2. Colours are the first real test; emotion is the first phase that could give a new result. Each phase now states what it contributes.
-4. Colour readout switched to causalab's single-token `hex_color` prompt; manifold fitted at the steered template and position; geometry check (paraboloid, where grey sits) before using saturation.
-5. Primary metrics now Goodfire's E_BC and isometry; primary comparison at matched success; statistics specified.
-6. §3 corrected: T scale (4–6 for Llama-3.1-8B), 0-based layer index, ∇h ⟂ x, smooth classifier, h not a success measure.
-7. Emotion phase: refusal changes are the expected mechanism, not a side effect. Benchmark phase: U undefined, needs a Perspective API key.
-8. Novelty narrowed; related-work table added (§8).
+The follow-up review corrected posterior-versus-density-ratio interpretation, exposed nonzero zero-strength retraction, separated path and endpoint hypotheses, added C-end/R0/spherical controls, and replaced the broad immediate roadmap with the gated colour pilot. These are incorporated in the active sections above rather than left as competing recommendations.
+
+### 9.3 Ring toy: fixed-step and retraction sweeps
+
+Grid: start ∈ {60, 90, 120, 150, 180}°, T ∈ {10, 20, 40}, r = 3; separate r sweep r ∈ {1, 3, 10, 30}. Success / lowest radius ÷ R:
+
+| Condition | from 120°, T = 10 / 20 / 40 | from 150° | from 180°, T = 10 / 20 / 40 |
+|---|---|---|---|
+| B: ODESteer | 1.00 / 1.00 / 1.00 · 0.88 | 1.00 · 0.51 | 1.00 / 1.00 / 1.00 · **0.09–0.13** (through the centre) |
+| E2-ms: plain mean shift | 0.97 / 1.00 / 1.00 · 0.95–0.97 | 0.96–1.00 · 0.95–0.97 | 0.20 / 0.98 / 0.99 · 0.93–0.94 |
+| **E2: SCMS, fixed step** | 0.92 / 1.00 / 1.00 · 0.94–0.95 | 0.87 / 1.00 / 1.00 · 0.94 | 0.64 / 0.93 / 1.00 · 0.91–0.92 |
+| E2 + stop on reversal (not adopted) | 0.84 / 0.93 / 0.97 | 0.78 / 0.89 / 0.94 | 0.23 / 0.39 / 0.71 |
+| E2-h: halve on reversal | 0.84 / 0.94 / 1.00 | 0.75 / 0.90 / 0.99 | 0.22 / 0.53 / 0.86 |
+
+- **Retraction:** success at r = 1 / 3 / 10 / 30 (120°, T = 20): E2-ms 1.00 / 1.00 / 0.36 ± 0.49 / **0.00**; E2 (SCMS) 1.00 / 1.00 / 1.00 / 0.99. From 180°, T = 20: E2-ms 0.93 / 0.98 / 0.42 / 0.00; E2 0.94 / 0.93 / 0.98 / 1.00.
+- **Step length:** with fixed steps, E2's final swing is ≈ one step length (3.7° / 8.4° / 17° at T = 10 / 20 / 40); B's is 0.1–2.4° because it settles at the classifier's off-data peak.
+- **Antipodal starts:** E2 reaches red from 180° while staying on the ring (radius ≈ 0.91), with somewhat more T than from 120°; ODESteer passes through the centre (radius 0.09).
+- **Radius understates ODESteer's departure:** from 120° at T = 20 (single world) B's in-plane radius stays ≈ 0.9 R but it moves 3.6 units out of the subspace (log p ≈ −1500). Hence the distance-to-data metric in §5.3.
+- Not testable in the ring toy: causal subspace sufficiency (its hue lives only in U by construction), the readout, and generation quality; these are handled by checks on real data (§5.2, §5.3, §6, §7).
+
+### 9.4 Non-circular geometries: horseshoe and Y-branch
+
+Setup ([`toy/geometries.py`](toy/geometries.py)): 1-D curves in a 3-D subspace of a 256-D space, same noise, offset and classifier recipe (posterior-threshold train accuracy 0.90–0.92, which is the majority-class baseline; see §9.6). **Horseshoe:** an arc of radius R from −150° to +150°; start at one tip, target at the other; the straight path crosses a gap of ≈ R, the on-data path is ≈ 5.2 R long and first moves away from the target. **Y:** three arms of length 2R at 0°, 120°, 240°; start at one tip, target at another; the on-data path goes through the junction. Success = within 0.5 R of the target tip; max gap = largest distance in the fitted PCA coordinates from the path to the nearest stored point ÷ R (≈ 0.06 means close in that projection, not a full-space manifold guarantee).
+
+| Geometry | Method | Success at T = 2 / 4 / 6 / 10 / 20 / 40 | Max gap ÷ R |
+|---|---|---|---|
+| horseshoe | B: ODESteer | 0 at every T | 0.5–5.7 (leaves the data) |
+| horseshoe | E2 | 0 at every T (0.01 at T = 40); progress ≤ 3% of the path | 0.06 |
+| horseshoe | E3: graph score | 0 / 0 / 0 / 0 / 0 / **0.98** (progress 0.63 at T = 20) | 0.06 |
+| Y | B: ODESteer | 0 at every T | 0.3–5.0 |
+| Y | E2 | 0 / 0 / 0 / 0 / 0.12 / **0.94** | 0.06 |
+| Y | E3: graph score | 0 / 0 / 0 / 0 / 0.58 / **1.00** | 0.06 |
+
+Reading: the fitted score and tangent estimates make E2 stall on this horseshoe; replacing the score with E3 resolves that failure in these runs. This does not establish that a classifier score is always Euclidean closeness, or that E3 succeeds on arbitrary geometry. Both manifold methods use proposal budgets above the geometric route length. Tangent noise, normal corrections and score behavior can all affect progress. A Y junction lacks a unique one-dimensional tangent. These results motivate specific follow-ups, not a general branch-steering claim.
+
+### 9.5 Source checks and remaining uncertainty
+
+The local ODESteer implementation supports the classifier/prior and hook account in §3. Prior review checked causalab's colour template, clustered stimulus coverage, weekday demo and Llama tokenization; these still need validation on the selected checkpoint and exact prompt.
+
+The paper review corrected Wurgaft's dimensions to 3D visualization and 64-D steering, identified the different residual handling in its published baselines, and checked its other-token bin and waypoint protocol. RMS tasks and restricted naturalness gains, Sun's lexicon-versus-generation evaluation distinction, and GeoSteer's §3.2 method were checked directly in the papers linked above. Code availability and comparative performance of all these methods have not been independently established here. No broad novelty-completeness claim is made.
+
+### 9.6 Follow-up CPU diagnostics: classifier and zero-strength correction
+
+These are additional **seed-0 diagnostics**, not six-replicate sweep estimates.
+
+| Geometry | Posterior-threshold training accuracy | Fraction predicted positive at 0.5 |
+|---|---:|---:|
+| Ring | 0.8330 | 0 |
+| Horseshoe | 0.9053 | 0 |
+| Y | 0.9163 | 0 |
+
+These values are majority-class accuracy under `predict()`, not evidence of no learned discrimination. Training ROC-AUC is 0.9897 for horseshoe and 0.9982 for Y; a noisy-coordinate proxy for ring labels gave 0.9870 and must not be reported as exact-label ring AUC.
+
+An exact-positive-set check on the seed-0 ring gave pi = 0.167. `log_dre > 0` accepted every training positive and every E2 endpoint in a 150° start, T = 20, 40-step, r = 3 run. It also accepted 33.0% of training negatives, so a corrected score threshold is not an exact red-region classifier. Selecting the highest-scoring stored points gave unchanged E3 success (numbers below). Labels, score thresholds and high-score subsets remain alternatives to validate (§4.3).
+
+With the unmodified E2 normal corrections, 40 iterations and r = 3, a seed-0 check gave:
+
+| Start distribution | Directional T | Median full-space displacement / R |
+|---|---:|---:|
+| Noisy ring near 150° | 0 | 0.0633 |
+| Noisy grey centre | 0 | 0.3113 (32 starts) |
+
+The grey starts used the fitted world's true centre μ plus isotropic noise 0.3 in all dimensions. **This outcome is bimodal, so a median is not a stable summary.** With 256 starts from the same distribution and three noise seeds (0, 1000, 7): 57–65% end on the ring (end radius > 0.8 R); displacement percentiles 10th/50th/90th ≈ 0.05–0.07 / 0.74–0.79 / 0.90 R; medians of 32-start batches range 0.24–0.83 R. The 0.31 R above and the earlier 0.76 R are draws from this one distribution. Starts exactly at the in-plane centre (an unstable fixed point) or within ≈ 0.02 R of it barely move. Report the capture fraction, not a median. There is no claim that the current code already satisfies the §4.2 checks.
+
+**Default ODESteer is near-linear in these toys, but the cut-across result is robust.** At default settings the classifier gradient has cosine ≈ 0.98 with the CAA direction at all tested starts, which is why A ≈ B ≈ C in §9.1. Refitting with C = 10³ and gamma = 10 (training balanced accuracy 1.00, held-out AUC 0.98, cosine with CAA ≈ 0.65) still gives lowest radius 0.09 R from 180°, 0.46 R from 150° and 0.81 R from 120° (seed 0, 64 starts, T = 10, 40 steps). So B's crossing is not an artefact of the underfit default classifier.
+
+**E3 with classifier-derived positives (seed 0):** taking the top-k stored points by `log_dre` (k = number of true positives; precision 0.81–0.95) gives E3 success equal to true labels: horseshoe 0.98 vs 0.98 at T = 40; Y 0.89 vs 0.91 at T = 20.
+
+These seed-0 diagnostics were run interactively and are not yet regenerated by a committed script.
 
 ## 10. References and code
 
@@ -224,3 +355,4 @@ Scripts (scratch, not committed): `toy/ring.py`, `toy/ring_perp.py`, `toy/ring_t
 - Valence-arousal subspace: [Sun et al. 2026](https://arxiv.org/abs/2604.03147)
 - Circular features: [Engels et al. 2024](https://arxiv.org/abs/2405.14860)
 - Related steering work: see the table in §8
+- GeoSteer: [paper and method](https://arxiv.org/html/2609.10658)
