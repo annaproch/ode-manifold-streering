@@ -1,10 +1,17 @@
 """Check 3: can the readout see off-manifold damage at all?
 
-Displaces real activations by the same distance in three directions and decodes each one:
+Displaces real activations by the same distance in five directions and decodes each one:
 
-  on_manifold     toward a real target donor's concept coordinates (positive control)
-  in_U_off_ring   inside the concept subspace but off the local curve
-  off_U           orthogonal to the concept subspace entirely
+  on_manifold           toward a real target donor's concept coordinates (positive control)
+  grad_off_U            the probe gradient's component outside the subspace -- what B moves
+                        along and C/E2 discard. This is the direction the experiment is about
+  grad_in_U_off_ring    the gradient's in-subspace component with the local tangent removed,
+                        i.e. what E2's tangent projection throws away
+  random_off_U          a random direction orthogonal to the subspace
+  random_in_U_off_ring  a random in-subspace direction off the local curve
+
+The random directions are a floor, not the test: in 4096 dimensions a random direction is
+nearly orthogonal to every readout direction, so it understates structured excursions.
 
 If the answer distribution degrades no more off-manifold than on-manifold, then the
 endpoint metric cannot register off-manifold damage, every arm will tie, and the readout
@@ -21,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-from _common import activations, chosen_fit, load_fit, load_run, target_index
+from _common import LABELS, activations, chosen_fit, load_fit, load_run, target_index
 from pilot.model import Runtime
 from pilot.storage import read_json
 
@@ -63,20 +70,37 @@ def main():
     def normalise(v):
         return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
 
-    random_full = rng.normal(size=source.shape)
-    off_u = normalise(random_full - (random_full @ u) @ u.T)
-    in_u = (rng.normal(size=(len(source), u.shape[1])) @ u.T)
     tangent = np.stack([geometry.basis(geometry.coordinates(x)) for x in source])
-    in_u_z = np.einsum("nd,dk->nk", in_u, u)
-    off_ring_z = in_u_z - np.einsum("nmk,nm->nk", tangent, np.einsum("nmk,nk->nm", tangent, in_u_z))
-    directions = {"on_manifold": normalise(toward), "in_U_off_ring": normalise(off_ring_z @ u.T), "off_U": off_u}
+
+    def strip_tangent(vector_in_u):
+        """Remove the local tangent component, leaving movement inside U but off the curve."""
+        z = np.einsum("nd,dk->nk", vector_in_u, u)
+        off = z - np.einsum("nmk,nm->nk", tangent, np.einsum("nmk,nk->nm", tangent, z))
+        return off @ u.T
+
+    # A random direction orthogonal to an 8-dim subspace of a 4096-dim space is nearly
+    # orthogonal to every readout direction, so it understates structured excursions.
+    # The gradient-derived directions are the ones the arms actually move along:
+    # B keeps `grad_off_U`, C removes it, and E2 additionally removes `grad_in_U_off_ring`.
+    gradient = probe.grad(source)
+    random_full = rng.normal(size=source.shape)
+    random_in_u = rng.normal(size=(len(source), u.shape[1])) @ u.T
+    directions = {
+        "on_manifold": normalise(toward),
+        "grad_off_U": normalise(gradient - (gradient @ u) @ u.T),
+        "grad_in_U_off_ring": normalise(strip_tangent((gradient @ u) @ u.T)),
+        "random_off_U": normalise(random_full - (random_full @ u) @ u.T),
+        "random_in_U_off_ring": normalise(strip_tangent(random_in_u)),
+    }
 
     revision = read_json(run / "collection" / "model.json")["revision"]
     runtime = Runtime(cfg, revision)
     baseline = probabilities[picked]
     print(f"run {run}   layer {layer}   k={meta['dimension']}   rows={len(picked)}")
     print(f"oracle displacement for reference: {np.linalg.norm(toward, axis=1).mean():.1f} raw units\n")
-    print(f"{'direction':<15} {'d':>5} {'p(start class)':>15} {'p(target)':>10} {'other':>8} {'argmax changed':>16}")
+    gray, brown = LABELS.index("gray"), LABELS.index("brown")
+    print(f"{'direction':<21} {'d':>4} {'p(start)':>9} {'p(target)':>10} {'p(gray)':>8} {'p(brown)':>9} "
+          f"{'other':>7} {'changed':>8}")
     for name, direction in directions.items():
         for d in args.distances:
             states = source + d * direction
@@ -85,8 +109,9 @@ def main():
             start = baseline.argmax(1)
             p_start = probability[np.arange(len(start)), start].mean()
             changed = np.mean(probability.argmax(1) != start)
-            print(f"{name:<15} {d:>5.0f} {p_start:>15.3f} {probability[:, target].mean():>10.3f} "
-                  f"{probability[:, -1].mean():>8.3f} {changed:>16.2f}")
+            print(f"{name:<21} {d:>4.0f} {p_start:>9.3f} {probability[:, target].mean():>10.3f} "
+                  f"{probability[:, gray].mean():>8.3f} {probability[:, brown].mean():>9.3f} "
+                  f"{probability[:, -1].mean():>7.3f} {changed:>8.2f}")
             if d == 0:
                 error = float(np.max(np.abs(probability - baseline)))
                 print(f"{'':<15} {'':>5} no-op check against the collection: max error {error:.2e}")
