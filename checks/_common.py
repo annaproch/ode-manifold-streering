@@ -17,7 +17,7 @@ from pilot.storage import load_arrays, read_json  # noqa: E402
 
 
 def load_run(run):
-    """Return (cfg, rows, probabilities, ids) for a finished run directory."""
+    """Return (cfg, rows, probabilities, array dictionaries) for a finished run."""
     run = Path(run)
     plan = json.loads((run / "effective-plan.json").read_text())
     cfg = plan.get("configuration", plan)
@@ -25,7 +25,9 @@ def load_run(run):
     shards = sorted(glob.glob(str(run / "collection" / "shards" / "*.npz")))
     if not shards:
         raise SystemExit(f"No collection shards in {run}")
-    pieces = [np.load(s) for s in shards]
+    # np.load returns an open NpzFile. Keeping one per shard exhausts macOS's
+    # file-descriptor limit before model inference/output writing can finish.
+    pieces = [load_arrays(s) for s in shards]
     ids = np.concatenate([p["ids"] for p in pieces])
     if list(ids) != [r["id"] for r in rows]:
         raise SystemExit("Collection order does not match stimuli.jsonl")
