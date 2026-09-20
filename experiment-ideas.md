@@ -152,3 +152,61 @@ These candidates exploit the distinction between steering toward a **learned tar
 Compare a single classifier-gradient step, that step plus local correction, adaptive ODE steering, ODE plus endpoint correction, and ODE plus continuous correction. Include global-subspace and norm-preserving controls where relevant. Match task success or intervention cost and measure the other axis, using outcomes independent of the steering classifier.
 
 The central question is whether **adaptive updates and local geometry together preserve context better than either component alone**. Evidence-sensitive answering offers a relatively contained first test; simulated tool safety offers the stronger application if that mechanism works.
+
+---
+
+## Re-scoring: where does ODE **+** manifold beat either alone?
+
+*Added 2026-09-20 after the ideas above. The filter is deliberately harsher than "is this a good setting": the combination has to beat each component used on its own.*
+
+### The criterion, made precise
+
+Ask what each half fails at:
+
+- **Manifold alone** = move to a real target activation and snap once, no iteration. It fails only when the destination is **not retrievable** — when no stored activation combines the required behaviour with the current context.
+- **ODE alone** = unconstrained adaptive flow. It fails only when leaving the data carries a **measurable cost**, or when greedy ascent overshoots a region target.
+
+The colour pilot gives direct evidence on the first clause, and it is damning. There the target *was* retrievable, and a one-shot donor patch reached 1.00 success at near-natural quality (p(red) 0.611 against 0.664 for activations the model genuinely calls red). No iterative method can beat that. Hence:
+
+> **ODE + manifold is justified exactly when the target state cannot be retrieved, and when the route to it must satisfy constraints that cannot be discharged in a single step.**
+
+### All candidates against it
+
+| Idea | Target retrievable? | Iteration genuinely required? | Off-data cost measurable? | Verdict |
+|---|---|---|---|---|
+| **7 Tool safety** | No — no stored activation has *this* task state + permissions + injection | Yes, the situation evolves mid-task | Yes — malformed arguments, wrong entity, dropped parameter | **Top** |
+| **4 Composition** | No — nothing is "formal *and* non-toxic *about this topic*" | **Yes, provably** (see below) | Yes — documented fluency collapse under vector addition | **Top** |
+| 1 Arc control | No — the target depends on the generated prefix | Yes, but it reduces to open- vs closed-loop | Yes — degenerate text | Strong; closed-loop novelty contested by LA-LQR |
+| 9 Code repair | No | Yes | Yes — regressions | Good, but equally-budgeted resampling is a brutal baseline |
+| 6 Evidence-sensitive answering | **Largely yes** — the evidence state is fixed before the intervention starts | Weak | Yes | **Drops out** |
+| 8 Sycophancy | Partly | Weak | Weak | No |
+| 5 Rotating concepts | **Yes** — patch the 1990 activation directly | No | No | No |
+| 3 Prompt-reachability | n/a — needs no ODE at all | No | n/a | Good project, different category |
+| 10 Strategy diversity | — | — | — | Belongs inside 4 or 7 as the control set, not standalone |
+
+### Why 6 drops
+
+Whether to answer, clarify, retrieve or abstain is determined by the evidence *before* any intervention begins. Nothing new is learned while moving. So the evidence state can be classified up front and the activation snapped toward an exemplar of the right class in one step — which is precisely idea 6's own kill condition, and on the colour evidence that baseline is strong. The ODE has no work to do.
+
+It revives only in a multi-turn form, where the model retrieves, discovers the evidence is insufficient, and *then* should abstain. That is idea 7 under a different name.
+
+### Why 4 rises
+
+It is the only candidate with a **principled reason why one step cannot suffice**. Landing in the intersection of two constraint sets is an alternating-projection problem, and alternating projection is inherently iterative: project onto "non-toxic" and you leave "formal"; project back and you leave "non-toxic". A single correction reaches the intersection only by luck. That is an argument for the ODE rather than an appeal to plausibility, and none of the other candidates has one.
+
+The rest lines up:
+
+- **Not retrievable** — no stored activation is simultaneously formal, non-toxic and about the user's specific topic.
+- **The off-data cost is already known to exist.** Composing steering vectors degrades fluency; that is the documented pain point in multi-attribute control. Unlike colours, this is a setting where the damage the constraint is supposed to prevent has already been observed by other people.
+- **There are baselines to beat** — plain vector addition, plus the existing multi-attribute control literature.
+- **It is cheap to kill.** Measure the overlap between the two concept subspaces first. Near-orthogonal subspaces mean addition already works and there is nothing to fix.
+
+### Revised recommendation
+
+**4 first, 7 second.** Composition is cheaper, has an existing baseline, a documented failure mode and the strongest theoretical case for iteration. Tool safety is the application with real external interest, once the mechanism is shown to work at all.
+
+Keep the shared pre-check for both: cache activations at the decision point, fit a multi-way probe, and run donor patching to confirm the target behaviours occupy distinguishable, context-dependent regions. For 4, add the subspace-overlap measurement, which can kill it before anything is built.
+
+### Caveat on this criterion
+
+Retrievability is inferred from a single concept where retrieval happened to work perfectly. For behavioural concepts a retrieved donor may transplant badly — even the colour oracle raised other-mass from 0.068 to 0.126, and that mismatch could be far larger when the donor's context differs from the source's. That would weaken the manifold-alone baseline and widen the space where the combination wins. Measuring donor-patch quality on a behavioural concept is itself cheap, and would sharpen this whole criterion before it is used to rule anything out.
