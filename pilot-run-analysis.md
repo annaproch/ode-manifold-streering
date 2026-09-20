@@ -154,6 +154,14 @@ For the *in-subspace, off-ring* excursion — the component E2's tangent project
 
 **Test 1 — the corrected endpoint measurement (~1 minute).** Re-run `checks/premise.py` saving the per-state probabilities, compute `nearest_bc` against the same natural target reference the `evaluation` stage uses, and compare directions at matched behaviour (equal fraction of answers flipped) rather than matched distance.
 
+A direct method comparison is now prepared in `checks/endpoint_comparison.py`. Run on the machine holding the pinned model:
+
+```sh
+python checks/endpoint_comparison.py --run pilot-runs/mps-smoke-v1 --batch-size 4
+```
+
+It uses 16 eligible non-target validation starts sampled across hue order, C/C-end/E2, and strength multipliers 0.5/1/1.5/2: 208 decoded prompt states including identity checks. It saves complete nine-bin endpoint probabilities, endpoint BC distances, success curves and a Markdown report under `pilot-runs/mps-smoke-v1/checks/endpoint-comparison/`. It checks success comparability at the smallest sampled strengths reaching 80%; unmatched success is explicitly flagged. Only three independent red-reference outputs are available, so this is exploratory and cannot establish superiority. Existing output directories are preserved; choose a new `--output` for a repeat. The script's dry run and mocked output checks passed locally, but **the decoded comparison has not run**: the available host has 8 GB RAM, no accelerator and no cached model weights. No timing estimate for this new comparison has been measured.
+
 **Test 2 — generation fragility (~30 minutes).** Take the d = 20 `grad_off_U` states and matched `on_manifold` states, generate 30–40 tokens from each, and compare perplexity under the unsteered model plus repetition and coherence.
 
 - If off-subspace movement degrades generation while leaving the answer token untouched, the manifold story is alive — the colour task was simply too insensitive a readout, and the project should move to a generation-based measurement.
