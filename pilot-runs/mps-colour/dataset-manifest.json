@@ -1,0 +1,39 @@
+{
+  "fingerprint": "008cdfaf388a1505d307a652d4cc3f1787612873915c22770f3a4827d034e2e3",
+  "identity": {
+    "data": {
+      "context_hue_step": 6.0,
+      "hue_step": 0.25,
+      "lightnesses": [
+        0.35,
+        0.5,
+        0.65
+      ],
+      "primary_lightness": 0.5,
+      "primary_saturation": 0.8,
+      "saturations": [
+        0.65,
+        0.8,
+        0.95
+      ],
+      "seed": 2718,
+      "split_fractions": {
+        "reference": 0.1,
+        "test": 0.225,
+        "train": 0.45,
+        "validation": 0.225
+      },
+      "templates": [
+        "main",
+        "paraphrase"
+      ]
+    },
+    "format": 1
+  },
+  "source_provenance": {
+    "files": [
+      "data.py"
+    ],
+    "sha256": "46b5d092a74bdfda5b14d9dee5ca720d7dc28e34553cb38422367ff1ec28cd0b"
+  }
+}
