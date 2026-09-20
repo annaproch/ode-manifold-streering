@@ -1,0 +1,5 @@
+{
+  "output": "pilot-runs/cuda-colour",
+  "model": {"device": "cuda", "dtype": "bfloat16", "batch_size": 8, "threads": 8},
+  "data": {"templates": ["main", "paraphrase"]}
+}

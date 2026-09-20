@@ -1,0 +1,6 @@
+{
+  "output": "pilot-runs/cpu-full",
+  "model": {"device": "cpu", "dtype": "float32", "batch_size": 2, "threads": 8},
+  "data": {"templates": ["main", "paraphrase"]},
+  "evaluation": {"maximum_decode_examples": 1000}
+}
