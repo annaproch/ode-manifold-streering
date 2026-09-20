@@ -1,0 +1,51 @@
+{
+  "adequate": true,
+  "note": "Counts follow hex deduplication and evaluation subsampling, before support gating. Repeated templates are not independent hex examples.",
+  "primary_unique_hexes": 1227,
+  "splits": {
+    "test": {
+      "120": {
+        "adequate": true,
+        "count": 33,
+        "required": 20
+      },
+      "150": {
+        "adequate": true,
+        "count": 34,
+        "required": 20
+      },
+      "180": {
+        "adequate": true,
+        "count": 13,
+        "required": 10
+      },
+      "90": {
+        "adequate": true,
+        "count": 36,
+        "required": 20
+      }
+    },
+    "validation": {
+      "120": {
+        "adequate": true,
+        "count": 28,
+        "required": 20
+      },
+      "150": {
+        "adequate": true,
+        "count": 30,
+        "required": 20
+      },
+      "180": {
+        "adequate": true,
+        "count": 15,
+        "required": 10
+      },
+      "90": {
+        "adequate": true,
+        "count": 31,
+        "required": 20
+      }
+    }
+  }
+}
