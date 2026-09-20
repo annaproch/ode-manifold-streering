@@ -1,0 +1,160 @@
+{
+  "batch_size": 4,
+  "decode_examples": 208,
+  "fit": "layer27-k8-seed0",
+  "hues": [
+    24.0,
+    28.0,
+    60.0,
+    66.0,
+    86.0,
+    102.0,
+    116.0,
+    130.0,
+    192.0,
+    194.0,
+    212.0,
+    256.0,
+    266.0,
+    308.0,
+    310.0,
+    326.0
+  ],
+  "methods": [
+    "C",
+    "C-end",
+    "E2"
+  ],
+  "model": {
+    "chat_template": false,
+    "dtype": "float16",
+    "layers": 32,
+    "local_config_hash": null,
+    "name": "meta-llama/Llama-3.1-8B",
+    "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+    "token_ids": [
+      [
+        1171,
+        2579,
+        3816,
+        6161
+      ],
+      [
+        19087,
+        22725,
+        35264,
+        43069
+      ],
+      [
+        14071,
+        26541,
+        28969,
+        48799
+      ],
+      [
+        6307,
+        7997,
+        13553,
+        20147
+      ],
+      [
+        6437,
+        8868,
+        10544,
+        12481
+      ],
+      [
+        25977,
+        41489,
+        57607,
+        75613
+      ],
+      [
+        11912,
+        18004,
+        20366,
+        24255,
+        26769,
+        29274,
+        35671,
+        60265
+      ],
+      [
+        10690,
+        14198,
+        49488,
+        65561
+      ]
+    ]
+  },
+  "reference_count": 3,
+  "reference_ids": [
+    "41b7eca3130acdd0eae8",
+    "4e47612be0a22c77c8bd",
+    "9988c43aab8e48d95ea9"
+  ],
+  "row_ids": [
+    "b1a494a4d51c72231de2",
+    "27c7a6d1edd90e342935",
+    "ac6dad4a07c4f94b9eac",
+    "a2a852ff4ddc64a526e0",
+    "50abfcde39a5c41e1d86",
+    "9bf04ed8a1a1e814f814",
+    "3f608e45724fda60b7ab",
+    "65eeb5efb7fa47758d76",
+    "84fad6fcb63dde9e7575",
+    "76fc1041d4cb83ac2c21",
+    "6143e6f7f8b29859dc4b",
+    "5d180a7a4dc6b9437eb9",
+    "e07623035aabd2ad97f3",
+    "3b7ff5733ab34a7c9b2d",
+    "bef29d7cf0689595e671",
+    "144a393b14c187c77d6e"
+  ],
+  "rows": 16,
+  "run": "pilot-runs/mps-smoke-v1",
+  "scale": 19.222584054399707,
+  "scope": "Exploratory validation comparison, one fitted seed, endpoints only. No held-out claim or bootstrap.",
+  "source_sha256": {
+    "_common.py": "450f15b9e37ec198614628febf6729d2170a846c5d6c6d90406f9dd40156c566",
+    "endpoint_comparison.py": "697937f0b3e2462176616631498bf62a1d3b1b5e44167ca1ae93436a675e1efe",
+    "geometry.py": "7cfd256c3287e6fee4d5decff47d66a890f60c66bc8f60cb5f038b7aed1588d1",
+    "model.py": "839e3cde019436388eb3ac0648b2cf19e95fd7afb4ffd8adf3b8574097614ed1",
+    "probe.py": "6aef75a5dc1189b2103fa2561099029b8390a6dc87021cd8e6966295c1d30416",
+    "steering.py": "c9847e67a2d3b0bd63c7e8f41d0b7b4e35a645992a7717c9c9241be9c0908fe4"
+  },
+  "steering": {
+    "additive_weight": 1.0,
+    "checkpoints": 3,
+    "correction_ratio": 0.25,
+    "methods": [
+      "none",
+      "A",
+      "R0",
+      "B",
+      "C",
+      "C-end",
+      "E2",
+      "F",
+      "S"
+    ],
+    "retractions": 3,
+    "steps": 10,
+    "strength_scale": "centroid_distance",
+    "strengths": [
+      0.0,
+      1.0
+    ],
+    "support_multiplier": 3.0,
+    "tiny_gradient": 1e-10
+  },
+  "strengths": [
+    0.5,
+    1.0,
+    1.5,
+    2.0
+  ],
+  "success_level": 0.8,
+  "success_tolerance": 0.05,
+  "warning": "Few target references: endpoint distances are provisional."
+}

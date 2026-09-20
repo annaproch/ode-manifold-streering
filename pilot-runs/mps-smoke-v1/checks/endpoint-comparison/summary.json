@@ -1,0 +1,466 @@
+{
+  "cells": [
+    {
+      "arrays": "C-T0.5.npz",
+      "correction_length": 0.0,
+      "displacement": 9.606401363569475,
+      "endpoint_bc": 0.4310343265533447,
+      "method": "C",
+      "model_seconds": 0.8519772090003244,
+      "other": 0.11807040125131607,
+      "p_target": 0.14044907689094543,
+      "raw_strength": 9.611292027199854,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 0.5,
+      "success": 0.0625
+    },
+    {
+      "arrays": "C-T1.npz",
+      "correction_length": 0.0,
+      "displacement": 19.185133376531212,
+      "endpoint_bc": 0.025524023920297623,
+      "method": "C",
+      "model_seconds": 0.8536409569933312,
+      "other": 0.14483392238616943,
+      "p_target": 0.6314582824707031,
+      "raw_strength": 19.222584054399707,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.0,
+      "success": 0.8125
+    },
+    {
+      "arrays": "C-T1.5.npz",
+      "correction_length": 0.0,
+      "displacement": 28.723232791438356,
+      "endpoint_bc": 0.02165626920759678,
+      "method": "C",
+      "model_seconds": 0.8541933340165997,
+      "other": 0.15118058025836945,
+      "p_target": 0.7967808246612549,
+      "raw_strength": 28.833876081599563,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.5,
+      "success": 1.0
+    },
+    {
+      "arrays": "C-T2.npz",
+      "correction_length": 0.0,
+      "displacement": 38.236680158772636,
+      "endpoint_bc": 0.036125801503658295,
+      "method": "C",
+      "model_seconds": 0.8531359570042696,
+      "other": 0.1805921196937561,
+      "p_target": 0.798734188079834,
+      "raw_strength": 38.445168108799415,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 2.0,
+      "success": 1.0
+    },
+    {
+      "arrays": "C-end-T0.5.npz",
+      "correction_length": 2.402823006799963,
+      "displacement": 7.965839266172198,
+      "endpoint_bc": 0.5915804505348206,
+      "method": "C-end",
+      "model_seconds": 0.8564802510009031,
+      "other": 0.10219511389732361,
+      "p_target": 0.10921940207481384,
+      "raw_strength": 9.611292027199854,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 0.5,
+      "success": 0.0625
+    },
+    {
+      "arrays": "C-end-T1.npz",
+      "correction_length": 4.805646013599926,
+      "displacement": 17.83411795860965,
+      "endpoint_bc": 0.02388455718755722,
+      "method": "C-end",
+      "model_seconds": 0.8705728319982882,
+      "other": 0.13039445877075195,
+      "p_target": 0.6355671882629395,
+      "raw_strength": 19.222584054399707,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.0,
+      "success": 0.875
+    },
+    {
+      "arrays": "C-end-T1.5.npz",
+      "correction_length": 7.208469020399891,
+      "displacement": 23.49624949254482,
+      "endpoint_bc": 0.012545403093099594,
+      "method": "C-end",
+      "model_seconds": 0.8955375420046039,
+      "other": 0.12979692220687866,
+      "p_target": 0.7972100973129272,
+      "raw_strength": 28.833876081599563,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.5,
+      "success": 1.0
+    },
+    {
+      "arrays": "C-end-T2.npz",
+      "correction_length": 9.611292027199852,
+      "displacement": 29.640847923893205,
+      "endpoint_bc": 0.02477468177676201,
+      "method": "C-end",
+      "model_seconds": 0.9501058349997038,
+      "other": 0.13779914379119873,
+      "p_target": 0.828455924987793,
+      "raw_strength": 38.445168108799415,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 2.0,
+      "success": 1.0
+    },
+    {
+      "arrays": "E2-T0.5.npz",
+      "correction_length": 2.3197108046690538,
+      "displacement": 9.090989066678322,
+      "endpoint_bc": 0.6937373876571655,
+      "method": "E2",
+      "model_seconds": 0.9111343750046217,
+      "other": 0.09098566323518753,
+      "p_target": 0.14975100755691528,
+      "raw_strength": 9.611292027199854,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 0.5,
+      "success": 0.1875
+    },
+    {
+      "arrays": "E2-T1.npz",
+      "correction_length": 4.600607794376061,
+      "displacement": 15.266153700155847,
+      "endpoint_bc": 0.40819698572158813,
+      "method": "E2",
+      "model_seconds": 0.9110204169992357,
+      "other": 0.09211530536413193,
+      "p_target": 0.29096293449401855,
+      "raw_strength": 19.222584054399707,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.0,
+      "success": 0.375
+    },
+    {
+      "arrays": "E2-T1.5.npz",
+      "correction_length": 6.9977864018514655,
+      "displacement": 18.687535020107774,
+      "endpoint_bc": 0.1989116221666336,
+      "method": "E2",
+      "model_seconds": 0.9110588750045281,
+      "other": 0.1015784814953804,
+      "p_target": 0.399250864982605,
+      "raw_strength": 28.833876081599563,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.5,
+      "success": 0.5
+    },
+    {
+      "arrays": "E2-T2.npz",
+      "correction_length": 9.528189762044985,
+      "displacement": 20.239441032778345,
+      "endpoint_bc": 0.07892923057079315,
+      "method": "E2",
+      "model_seconds": 0.9068187909942935,
+      "other": 0.11141509562730789,
+      "p_target": 0.5636785626411438,
+      "raw_strength": 38.445168108799415,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 2.0,
+      "success": 0.75
+    }
+  ],
+  "complete": true,
+  "identity_max_error": 0.0017586946487426758,
+  "interpretation": "Descriptive validation evidence only. Missing operating points or unmatched success prevent a quality ranking.",
+  "operating_points": {
+    "C": {
+      "arrays": "C-T1.npz",
+      "correction_length": 0.0,
+      "displacement": 19.185133376531212,
+      "endpoint_bc": 0.025524023920297623,
+      "method": "C",
+      "model_seconds": 0.8536409569933312,
+      "other": 0.14483392238616943,
+      "p_target": 0.6314582824707031,
+      "raw_strength": 19.222584054399707,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.0,
+      "success": 0.8125
+    },
+    "C-end": {
+      "arrays": "C-end-T1.npz",
+      "correction_length": 4.805646013599926,
+      "displacement": 17.83411795860965,
+      "endpoint_bc": 0.02388455718755722,
+      "method": "C-end",
+      "model_seconds": 0.8705728319982882,
+      "other": 0.13039445877075195,
+      "p_target": 0.6355671882629395,
+      "raw_strength": 19.222584054399707,
+      "reasons": {
+        "ok": 16
+      },
+      "strength": 1.0,
+      "success": 0.875
+    },
+    "E2": null
+  },
+  "plan": {
+    "batch_size": 4,
+    "decode_examples": 208,
+    "fit": "layer27-k8-seed0",
+    "hues": [
+      24.0,
+      28.0,
+      60.0,
+      66.0,
+      86.0,
+      102.0,
+      116.0,
+      130.0,
+      192.0,
+      194.0,
+      212.0,
+      256.0,
+      266.0,
+      308.0,
+      310.0,
+      326.0
+    ],
+    "methods": [
+      "C",
+      "C-end",
+      "E2"
+    ],
+    "model": {
+      "chat_template": false,
+      "dtype": "float16",
+      "layers": 32,
+      "local_config_hash": null,
+      "name": "meta-llama/Llama-3.1-8B",
+      "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+      "token_ids": [
+        [
+          1171,
+          2579,
+          3816,
+          6161
+        ],
+        [
+          19087,
+          22725,
+          35264,
+          43069
+        ],
+        [
+          14071,
+          26541,
+          28969,
+          48799
+        ],
+        [
+          6307,
+          7997,
+          13553,
+          20147
+        ],
+        [
+          6437,
+          8868,
+          10544,
+          12481
+        ],
+        [
+          25977,
+          41489,
+          57607,
+          75613
+        ],
+        [
+          11912,
+          18004,
+          20366,
+          24255,
+          26769,
+          29274,
+          35671,
+          60265
+        ],
+        [
+          10690,
+          14198,
+          49488,
+          65561
+        ]
+      ]
+    },
+    "reference_count": 3,
+    "reference_ids": [
+      "41b7eca3130acdd0eae8",
+      "4e47612be0a22c77c8bd",
+      "9988c43aab8e48d95ea9"
+    ],
+    "row_ids": [
+      "b1a494a4d51c72231de2",
+      "27c7a6d1edd90e342935",
+      "ac6dad4a07c4f94b9eac",
+      "a2a852ff4ddc64a526e0",
+      "50abfcde39a5c41e1d86",
+      "9bf04ed8a1a1e814f814",
+      "3f608e45724fda60b7ab",
+      "65eeb5efb7fa47758d76",
+      "84fad6fcb63dde9e7575",
+      "76fc1041d4cb83ac2c21",
+      "6143e6f7f8b29859dc4b",
+      "5d180a7a4dc6b9437eb9",
+      "e07623035aabd2ad97f3",
+      "3b7ff5733ab34a7c9b2d",
+      "bef29d7cf0689595e671",
+      "144a393b14c187c77d6e"
+    ],
+    "rows": 16,
+    "run": "pilot-runs/mps-smoke-v1",
+    "scale": 19.222584054399707,
+    "scope": "Exploratory validation comparison, one fitted seed, endpoints only. No held-out claim or bootstrap.",
+    "source_sha256": {
+      "_common.py": "450f15b9e37ec198614628febf6729d2170a846c5d6c6d90406f9dd40156c566",
+      "endpoint_comparison.py": "697937f0b3e2462176616631498bf62a1d3b1b5e44167ca1ae93436a675e1efe",
+      "geometry.py": "7cfd256c3287e6fee4d5decff47d66a890f60c66bc8f60cb5f038b7aed1588d1",
+      "model.py": "839e3cde019436388eb3ac0648b2cf19e95fd7afb4ffd8adf3b8574097614ed1",
+      "probe.py": "6aef75a5dc1189b2103fa2561099029b8390a6dc87021cd8e6966295c1d30416",
+      "steering.py": "c9847e67a2d3b0bd63c7e8f41d0b7b4e35a645992a7717c9c9241be9c0908fe4"
+    },
+    "steering": {
+      "additive_weight": 1.0,
+      "checkpoints": 3,
+      "correction_ratio": 0.25,
+      "methods": [
+        "none",
+        "A",
+        "R0",
+        "B",
+        "C",
+        "C-end",
+        "E2",
+        "F",
+        "S"
+      ],
+      "retractions": 3,
+      "steps": 10,
+      "strength_scale": "centroid_distance",
+      "strengths": [
+        0.0,
+        1.0
+      ],
+      "support_multiplier": 3.0,
+      "tiny_gradient": 1e-10
+    },
+    "strengths": [
+      0.5,
+      1.0,
+      1.5,
+      2.0
+    ],
+    "success_level": 0.8,
+    "success_tolerance": 0.05,
+    "warning": "Few target references: endpoint distances are provisional."
+  },
+  "runtime": {
+    "chat_template": false,
+    "device": "mps",
+    "dtype": "float16",
+    "layers": 32,
+    "local_config_hash": null,
+    "name": "meta-llama/Llama-3.1-8B",
+    "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+    "token_ids": [
+      [
+        1171,
+        2579,
+        3816,
+        6161
+      ],
+      [
+        19087,
+        22725,
+        35264,
+        43069
+      ],
+      [
+        14071,
+        26541,
+        28969,
+        48799
+      ],
+      [
+        6307,
+        7997,
+        13553,
+        20147
+      ],
+      [
+        6437,
+        8868,
+        10544,
+        12481
+      ],
+      [
+        25977,
+        41489,
+        57607,
+        75613
+      ],
+      [
+        11912,
+        18004,
+        20366,
+        24255,
+        26769,
+        29274,
+        35671,
+        60265
+      ],
+      [
+        10690,
+        14198,
+        49488,
+        65561
+      ]
+    ],
+    "versions": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "transformers": "4.57.1"
+    }
+  },
+  "selection_rule": "Smallest sampled strength reaching the configured success level for each method.",
+  "success_comparable": false
+}
