@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from _common import (bhattacharyya_to_nearest, chosen_fit, load_run, target_index)
+from pilot.storage import load_arrays
 
 
 def main():
@@ -43,11 +44,11 @@ def main():
     print(f"natural target outputs: {len(held_out)} in the reference split, {len(any_split)} across all primary stimuli")
     if len(held_out) < 5:
         print("  WARNING: the reference split is too thin to be a stable reference; widen it in the next run.")
+    saved = load_arrays(patch_file)
     for name, ref in (("reference split", held_out), ("all primary", any_split)):
         if len(ref) == 0:
             continue
         print(f"\nagainst the {name} reference (n={len(ref)}):")
-        saved = np.load(patch_file)
         print(f"  {'condition':<10} {'success':>8} {'p(target)':>10} {'other':>8} {'endpoint BC':>12}")
         for condition in ("identity", "full", "subspace"):
             if condition not in saved:
