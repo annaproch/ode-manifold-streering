@@ -1,9 +1,9 @@
 {
-  "output": "pilot-runs/cpu-smoke",
+  "output": "pilot-runs/cpu-smoke-v2",
   "model": {"device": "cpu", "dtype": "float32", "batch_size": 1, "threads": 8},
-  "data": {"hue_step": 4.0, "saturations": [0.8], "lightnesses": [0.5]},
+  "data": {"hue_step": 2.0, "saturations": [0.8], "lightnesses": [0.5]},
   "fit": {"layers": [18, 27], "dimensions": [8, 16], "seeds": [0]},
-  "steering": {"strengths": [0.0, 0.5, 1.0, 2.0], "checkpoints": 5},
+  "steering": {"strengths": [0.0, 1.0], "checkpoints": 3},
   "evaluation": {"bootstrap_samples": 500, "minimum_band_prompts": 1,
                  "minimum_antipodal_prompts": 1, "minimum_reference_points": 2, "maximum_decode_examples": 1000}
 }

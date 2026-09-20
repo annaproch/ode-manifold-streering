@@ -1,6 +1,6 @@
 # Experiment plan: ODE steering constrained to a concept manifold
 
-*Status: consolidated 2026-09-19; implementation added 2026-09-20. This is the single current plan, incorporating the design reviews and follow-up corrections. No LLM experiment has been run. Committed CPU toy results are in §9; additional seed-0 review diagnostics are identified separately. The new CPU/CUDA/MPS pilot code and safeguards have been written in [`pilot/`](pilot/README.md), but have not been executed or tested. The user explicitly requested stopping before execution.*
+*Status: consolidated 2026-09-19; implementation and initial CPU checks added 2026-09-20. This is the single current plan, incorporating the design reviews and follow-up corrections. No pretrained-LLM experiment has been run. Committed CPU toy results are in §9; additional seed-0 review diagnostics are identified separately. The user subsequently authorized local execution: CPU synthetic tests, numerical preflight and data/cost checks now pass for [`pilot/`](pilot/README.md). Real-model and accelerator behavior remain untested.*
 
 **Decision: pursue one bounded real-model pilot.** Run CPU controls and a 50–100-prompt colour/readout and donor-patching check first. Expand to a dense colour pilot only if the intervention space causally controls the answer. The broader roadmap is conditional (§6); the immediate work is the gated colour pilot.
 
@@ -92,7 +92,7 @@ Before using E2 in the pilot:
 
 With U = I and all geometry operations/gating disabled, the baseline integration must recover ODESteer's normalized Euler vector field at the same step count. The new implementation is standalone rather than subclassing upstream `BaseODESteer`, avoiding an install-time dependency on the unlicensed upstream repository. It includes an optional numerical parity check using a user's existing upstream checkout with shared sketch hashes/weights. Corrections are explicit integration operations, not only a replacement vector field. Safeguards may change toy results; identify the implementation version rather than reusing archived numbers as validation of a new algorithm.
 
-The untested implementation clips each E2 correction to `correction_ratio * (T/steps) / retractions`, with provisional default ratio 0.25, and freezes the last accepted state on a support exit. Thus the correction budget vanishes with T; R0 deliberately retains unbounded strength-independent corrections as a diagnostic. These are explicit design choices to inspect in the preflight, not evidence of validated behavior. See [`pilot/README.md`](pilot/README.md) for profiles, stage commands, and artifact semantics.
+The implementation clips each E2 correction to `correction_ratio * (T/steps) / retractions`, with provisional default ratio 0.25, and freezes the last accepted state on a support exit. Thus the correction budget vanishes with T; R0 deliberately retains unbounded strength-independent corrections as a diagnostic. CPU synthetic tests and preflight pass for these safeguards; real-activation behavior is still untested. See [`pilot/README.md`](pilot/README.md) for profiles, stage commands, and artifact semantics.
 
 ### 4.3 E3 and optional variants
 
@@ -206,6 +206,14 @@ Before outcome inspection, define a practically useful improvement and the analy
 
 ### 6.1 Run now
 
+Local checks on the 8 GB, CPU-only Linux ARM environment:
+
+- **19 unit tests passed; one accelerator test skipped.** Synthetic preflight passed all 360 source/method/strength cases; maximum analytic-gradient error was 1.36e-12 and radial dot product was −1.39e-17. The optional upstream parity check was not run because its checkout is absent. No pretrained weights were downloaded. This is not the user's 128 GB machine.
+- Tested environment: Python 3.13.5, NumPy 2.5.3, SciPy 1.18.1, scikit-learn 1.9.1 and PyTorch 2.14.0+cpu; Transformers 4.57.1 is installed but no pretrained-model load was attempted. Local preflight artifacts are in `pilot-runs/cpu-smoke-v2/preflight/` and full-profile coverage in `pilot-runs/mps-colour/coverage.json`; these raw run directories are ignored by Git. This plan retains the check summary.
+- The full profile produces **1,227 distinct primary hexes**. Validation counts at 90°/120°/150°/180° are **31/28/30/15**; test counts are **36/33/34/13**. Thus the main test cohort has 103 colours before model-label filtering and support gating, including 34 at 150°. Eligible counts and statistical power remain unestablished until the model run.
+- Before identical-state caching, the full main-template validation endpoint sweep needs at most **31,944** prompt-state decodes; test paths need **40,095**. Selected validation paths and paraphrase transfer add further work.
+- The initial CPU smoke grid had missing source bands. Its corrected 2° grid has 247 rows, one seed, multipliers 0/1 and three decoded checkpoints. Each evaluation stage fits its 1,000-decode budget. Smoke outcomes cannot support the confirmatory criterion.
+
 1. **CPU preflight:** implement/check no-op and small-strength behavior, R0 and eligibility diagnostics. Existing toys already justify a real-model check; avoid another broad shape sweep. Verify that geometry-disabled code reproduces the baseline and preserve archived results separately from revised algorithms.
 2. **Smoke test on the pinned Llama-3.1-8B checkpoint:** 50–100 readout prompts followed by a small activation collection, no-op calibration and donor-patching check. The 128 GB host has room for the stated weight sizes plus overhead; CPU latency still needs measurement. Do not substitute a smaller checkpoint unless it separately passes the readout gate.
 3. **Expanded colour pilot after the gate passes:** check deduplicated primary coverage and decode budgets before collection. Run the §5.3 comparison on one checkpoint/site. PCA, classifiers, graphs and analyses are CPU-friendly; use MPS/CUDA for the full model-forward workload. Select strengths from validation endpoints, freeze them, then decode selected validation paths and the confirmatory test. Scoped code hashes are provenance, not enforced cache keys: report/comment changes must not trigger recollection. Use a new output directory for substantive algorithm changes.
@@ -231,7 +239,7 @@ Colour success establishes feasibility. A stronger methods paper would need an a
 - **Readout and evaluation:** colour classification uncertainty is not desaturation. Preserve other-token mass, validate boundary examples and keep evaluation reference data independent of method fitting. Separate selection and test data.
 - **Extrapolation:** support constraints intentionally limit access to unobserved regions; improved on-support control is not a promise of novel concept combinations.
 - **Scale:** kNN/KDE can become unreliable at large k or sparse sample counts. A learned geometry model is a possible redesign, not an automatic extension of a successful low-dimensional pilot.
-- **Provisional implementation defaults:** a correction budget vanishing with T, distance-based gate and identity/freeze fallbacks, neighborhood/m, layer candidates and nearest-reference output estimator are now specified in the untested code. Inspect them in preflight and validation; record any changes in a new run directory. Checkpoint identity and practical thresholds still need to be fixed before confirmatory evaluation. Default practical-effect thresholds are null, so default runs are exploratory.
+- **Provisional implementation defaults:** the correction budget and synthetic identity/freeze behavior pass local CPU checks; distance-based gating, neighborhood/m, layer candidates and nearest-reference output estimates still need real-model validation. Record design changes in a new run directory. Checkpoint identity and practical thresholds must be fixed before confirmatory evaluation. Default practical-effect thresholds are null, so default runs are exploratory.
 
 ## 8. Related work and novelty
 

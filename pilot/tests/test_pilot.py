@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from pilot.config import DEFAULTS
+from pilot.config import DEFAULTS, load
 from pilot.data import coverage, make, read, split_for
 from pilot.preflight import fixture, gradient_error
 from pilot.reporting import paired_bootstrap
@@ -97,6 +97,19 @@ class NumericalTests(unittest.TestCase):
 
 
 class DataAndAnalysisTests(unittest.TestCase):
+    def test_supplied_profiles_cover_bands_and_fit_decode_budgets(self):
+        from pilot.pipeline import estimate_cost
+        config_dir = Path(__file__).resolve().parents[1] / "configs"
+        for profile in ("cpu-smoke.json", "mps-128gb.json"):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as folder:
+                cfg = load(config_dir / profile)
+                cfg["output"] = folder
+                summary = make(cfg)
+                self.assertTrue(summary["coverage"]["adequate"], summary["coverage"])
+                for split, paths in (("validation", False), ("validation", True), ("test", False)):
+                    estimate = estimate_cost(cfg, split, paths=paths)
+                    self.assertLessEqual(estimate["decode_examples_upper_bound"], estimate["budget"])
+
     def test_split_identity_across_templates_and_hex_deduplication(self):
         with tempfile.TemporaryDirectory() as folder:
             cfg = copy.deepcopy(DEFAULTS)

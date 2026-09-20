@@ -1,6 +1,6 @@
 # Colour-manifold pilot implementation
 
-**Implementation status: written, not executed or tested.** No installation, model download, model load, numerical preflight, unit test, or experiment has been performed for this implementation. The commands below are for a later explicit run.
+**Implementation status: CPU unit tests, synthetic numerical preflight, and data/cost checks have been run.** No pretrained model has been downloaded or loaded. Real-model readout, patching and steering remain untested, as do CUDA/MPS execution. See the recorded local checks in the [experiment plan](../experiment-plan.md#61-run-now).
 
 The research design remains in [../experiment-plan.md](../experiment-plan.md). This file documents operating the code; it is not a second experiment plan. The implementation covers the active colour pilot and its optional steering ablations. Deferred emotion, SAE, geography and alignment-benchmark studies are not silently included.
 
@@ -21,7 +21,7 @@ The model adapter targets Hugging Face decoder models with `model.model.layers`,
 
 ## Installation, when ready
 
-Python 3.11 or 3.12 is recommended. From the repository root, create a dedicated environment. These are instructions only; they have not been run:
+From the repository root, create a dedicated environment. The local CPU checks passed on Python 3.13.5; other Python versions and accelerator environments remain unverified:
 
 ```sh
 python3 -m venv .venv
@@ -29,7 +29,7 @@ python3 -m venv .venv
 python -m pip install -r pilot/requirements.txt
 ```
 
-For Linux CPU-only or a particular CUDA runtime, install the appropriate PyTorch wheel using the [official PyTorch installation selector](https://pytorch.org/get-started/locally/) before installing the requirements. The Transformers adapter is written against [version 4.57.1](https://huggingface.co/docs/transformers/v4.57.1/en/main_classes/model), which is pinned in requirements. Dependency compatibility is unverified until the deferred tests run.
+For Linux CPU-only or a particular CUDA runtime, install the appropriate PyTorch wheel using the [official PyTorch installation selector](https://pytorch.org/get-started/locally/) before installing the requirements. The local run used the CPU wheel index (`https://download.pytorch.org/whl/cpu`) to avoid unnecessary CUDA packages. The Transformers adapter targets [version 4.57.1](https://huggingface.co/docs/transformers/v4.57.1/en/main_classes/model), pinned in requirements. Synthetic CPU checks passed with the versions recorded in the experiment plan; actual pretrained-model compatibility remains untested.
 
 The default model is the **base** `meta-llama/Llama-3.1-8B`, with raw prompts. All profiles default to `local_files_only: true`, so missing model files cause an error rather than a download. Set `model.name` to a local immutable checkpoint directory, or cache an accessible checkpoint yourself. To allow the CLI to download later, explicitly change `local_files_only` to false and configure normal Hugging Face access. No access token is recorded in artifacts.
 
@@ -41,7 +41,7 @@ JSON files override the defaults in [config.py](config.py); unknown keys are rej
 
 The grid uses HSL, not HSV. The primary curve (saturation 0.8, lightness 0.5) samples hue every **0.25°**, deduplicated after rounding to hex. Other saturation/lightness slices (0.65/0.8/0.95 × 0.35/0.5/0.65) use a separate coarse 6° grid for context plots. Gray, brown and unrelated controls are included. Every template for a given hex has the same split. At fixed saturation/lightness, 8-bit RGB quantization limits distinct hexes: a finer hue grid cannot create 2,000–3,000 independent colours on this curve. Inspect actual counts rather than counting requested grid points or repeated templates.
 
-The smoke profile reduces the grid to 90 primary-slice hue inputs, plus controls, uses two layers/two PCA dimensions and one seed. Readout validation is limited to 100 labeled examples. The subsequent smoke collection is larger than 100 because it also includes controls and held-out splits. It is not a confirmatory three-seed study, and a missing reference class or insufficient split coverage is a real gate failure rather than an excuse to use training examples as test data.
+The smoke profile uses 180 primary-slice hue inputs, plus controls (247 rows total), two layers/two PCA dimensions and one seed. It tests only strength multipliers 0 and 1 and decodes three path checkpoints, keeping each evaluation stage under 1,000 decodes. This is an execution check, not a success-matching or statistical experiment. Readout validation is limited to 100 labeled examples; later collection includes controls and held-out splits. Its output is `pilot-runs/cpu-smoke-v2` so the corrected sampling does not mix with an earlier 90-hue dataset. Missing model-labeled references or poor support remain valid gate failures.
 
 Data are split by hex identity into training (45%), independent natural reference (10%), validation (22.5%), and test (22.5%). `coverage.json` reports actual primary starts by band after deduplication and subsampling. Full profiles require at least 20 per 90°/120°/150° band and 10 at 180° in each evaluation split; collection refuses insufficient coverage. These are minimum coverage safeguards, not a power calculation. Selection checks counts again after gating for each fitted seed; test reports cannot claim a criterion pass with insufficient eligible main-band counts. At least eight model-labeled target references are required for full evaluation. The smoke profile lowers these minima and cannot establish a research result.
 
@@ -202,7 +202,7 @@ Paired comparisons match prompt IDs and fitted seeds, average seeds within each 
 
 ## Scope and first-run limitations
 
-- This is unexecuted implementation, not a claim of passing tests or working on any particular accelerator.
+- CPU synthetic tests and data preparation pass locally; this does not establish model compatibility, real-model success, or accelerator correctness.
 - The dense grid may still yield too few valid target examples or a poor manifold in the chosen model. Stages fail explicitly instead of inventing references or bypassing the gate.
 - Gray/brown HSL labels are coarse readout controls; inspect their validity on the selected model.
 - Optional spherical/spline methods are controlled comparators, not claimed byte-for-byte reproductions of entire published pipelines.
