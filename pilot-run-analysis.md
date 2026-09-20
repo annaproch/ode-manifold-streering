@@ -15,17 +15,19 @@
 
 The pipeline works and the causal gate passed convincingly: an **8-dimensional subspace at layer 27 is causally sufficient** — patching only those coordinates from a real red donor matches a full activation replacement (both 1.00 success), and lands just below genuinely-red behaviour.
 
-Three cheap pre-run checks then established that **the planned steering comparison would not measure anything**, for a reason the plan did not anticipate:
+Three cheap pre-run checks then established three things the plan did not anticipate:
 
 1. **64% of ODESteer's gradient energy lies outside that subspace, and moving along it is behaviourally inert.** Displacing an activation 20 units along the gradient's off-subspace component (larger than the oracle's 16.8) changes the answer in **0 of 16** cases — less than a random direction does.
 2. **The component E2 additionally discards is productive**, not noise: it reaches p(red) = 0.54 and flips 69% of answers.
 3. **The "path through grey" prediction is falsified.** p(gray) never exceeds 0.006 in any direction at any distance.
 
-So there is no off-manifold damage for the manifold constraint to prevent, and no third state for it to avoid. The endpoint and path hypotheses are both untestable at this site. Total cost of learning this: about two minutes of GPU time.
+So the component the constraint removes is inert, the component it *also* removes is useful, and there is no third state to avoid. The path hypothesis loses its colour prediction outright. Total cost of learning this: about two minutes of GPU time.
+
+**Correction (after review).** An earlier version of this document concluded that the endpoint hypothesis was untestable here. That is **not established**: the check reported other-mass, while the endpoint metric is `nearest_bc` over the full nine-bin vector. At d = 20 the two in-subspace directions have almost identical other-mass (0.128 vs 0.126) but very different distributions — `on_manifold` leaves 0.046 on the start colour, `grad_in_U_off_ring` leaves **0.274**, and natural red outputs do not look like the latter. That residue is an unnaturalness signature the endpoint metric can see and the printed column cannot. Resolving it needs a re-run of `checks/premise.py` that computes `nearest_bc` against the natural reference, compared at matched behaviour rather than matched distance (§5).
 
 **What survives:** the concept subspace is causally sufficient and everything outside it is inert, which argues for *projection* (condition C) rather than manifold-following (E2) — a smaller claim than the project set out to make, but one this data already supports.
 
-**Recommendation:** do not run the dense colour sweep. Run one generation-fragility test instead (§5).
+**Recommendation:** still do not run the dense colour sweep — but for a narrower reason than before (§5). Run two cheap tests first: the corrected endpoint measurement, and a generation-fragility test.
 
 ## 1. Gates that passed
 
@@ -136,19 +138,23 @@ Three results:
 
 ## 4. What this means
 
-**The endpoint hypothesis has nothing to measure at this site.** It was framed as "at matched success, E2 causes less unwanted change than simpler controls". The unwanted change was supposed to come from leaving the data manifold — but the off-subspace excursion is behaviourally inert, and other-mass at d = 20 is the same in every direction (0.122–0.144) and matches natural red prompts (0.123–0.131). At matched success, every arm will look alike.
+**The endpoint hypothesis is narrowed, not dead.** It was framed as "at matched success, E2 causes less unwanted change than simpler controls". For the *off-subspace* excursion the answer is clear: that component is behaviourally inert, so the B-vs-C contrast is bounded at roughly 0.016 of other-mass and zero success — there is nothing there to win.
+
+For the *in-subspace, off-ring* excursion — the component E2's tangent projection removes — the question is open, and this check could not answer it because it printed other-mass rather than the endpoint metric. The two directions differ sharply in shape (residual mass on the start colour 0.046 vs 0.274) while matching on other-mass, so `nearest_bc` may well discriminate where the printed column cannot. Two further cautions apply to any such comparison: the per-row SD of other-mass is 0.014–0.017, giving a standard error near 0.0035 at n = 16, against a batch-16 plumbing error of 3.45e-03; and `on_manifold`'s other-mass is non-monotonic in distance (0.074, 0.082, 0.102, 0.159, 0.128), so comparing at matched distance rather than matched behaviour flatters whichever arm has already committed to the target.
 
 **The path hypothesis loses its colour prediction.** Crossing the interior of the hue disc does not produce grey, so there is no "sensible versus nonsensical intermediate state" contrast to measure. The model interpolates between the start and target colours whichever way it is moved.
 
-**The premise behind manifold-constrained steering is not supported here.** The idea rests on off-manifold states being *bad*. In this model, at this site, they are *ignored*. A constraint that prevents something harmless cannot pay for itself.
+**The premise splits in two, and only one half is settled.** Manifold-constrained steering rests on off-manifold states being *bad*. "Off-manifold" turns out to mean two different things here. Outside the concept subspace, states are *ignored* — a constraint that prevents something harmless cannot pay for itself, and that disposes of the B-vs-C contrast. Inside the subspace but off the hue ring, states are emphatically not ignored: they flip 69% of answers. Whether they are also *worse* is the open question, and it is the only place left where E2's tangent projection could earn anything.
 
 **What the data does support** is smaller and cleaner: the concept subspace is causally sufficient, and the majority of ODESteer's gradient lies outside it doing nothing. "Project the steering direction onto the concept subspace and discard the rest" is condition C, not E2 — a real and cheap improvement to ODESteer, already supported by the numbers above.
 
 ## 5. Recommendation
 
-**Do not run the dense colour sweep.** It would spend hours to produce a tie on the endpoint metric and no grey on the path metric. The pre-run gates did their job.
+**Do not run the dense colour sweep yet**, and probably not at all. The path half is settled — no grey, so nothing to measure. The endpoint half needs one more minute of compute before it can be judged, and even the optimistic outcome most likely favours the simpler arm: the premise check showed that what E2 discards is productive, so E2's only route to a win is a more natural endpoint — which is precisely what **C-end** delivers by keeping the productive signal and snapping onto the manifold once. C-end was already closest to the oracle at T = 1 (7.43 versus E2's 10.76). "C-end matches E2, prefer the simpler method" is an outcome the plan predeclared.
 
-**Run one experiment instead: generation fragility.** Take the d = 20 `grad_off_U` states and matched `on_manifold` states, generate 30–40 tokens from each, and compare perplexity under the unsteered model plus repetition and coherence.
+**Test 1 — the corrected endpoint measurement (~1 minute).** Re-run `checks/premise.py` saving the per-state probabilities, compute `nearest_bc` against the same natural target reference the `evaluation` stage uses, and compare directions at matched behaviour (equal fraction of answers flipped) rather than matched distance.
+
+**Test 2 — generation fragility (~30 minutes).** Take the d = 20 `grad_off_U` states and matched `on_manifold` states, generate 30–40 tokens from each, and compare perplexity under the unsteered model plus repetition and coherence.
 
 - If off-subspace movement degrades generation while leaving the answer token untouched, the manifold story is alive — the colour task was simply too insensitive a readout, and the project should move to a generation-based measurement.
 - If generation is unaffected too, off-subspace steering is genuinely inert in this model and the premise itself is wrong.
