@@ -1,17 +1,33 @@
-# Analysis of the first pilot run (`mps-smoke-v1`) and a code review
+# First pilot run: analysis, pre-run checks, and why the colour comparison should not be run
 
-*Written 2026-09-20 by an independent review pass. Every number below was read from the committed artifacts or recomputed from them; nothing here was produced by rerunning the pilot.*
+*Written 2026-09-20 by an independent review pass. Every number was read from committed artifacts or produced by the scripts in [`checks/`](checks/); nothing here comes from rerunning the pilot itself.*
 
 | | |
 |---|---|
 | Run | `pilot-runs/mps-smoke-v1`, committed in `dbc6e52` |
 | Code | `fa8ba11` (`pilot-runs/mps-smoke-v1/code-commit.txt`) |
-| Model | `meta-llama/Llama-3.1-8B`, revision `d04e592bb4f6aa9cfee91e2e20afa771667e1d4b`, fp16 on MPS, batch 1, no chat template |
-| Config | smoke profile: `hue_step` 2.0, one saturation/lightness slice, layers {18, 27}, k ∈ {8, 16}, **one seed**, strengths [0, 1] |
+| Model | `meta-llama/Llama-3.1-8B`, revision `d04e592bb4f6aa9cfee91e2e20afa771667e1d4b`, fp16 on MPS |
+| Config | smoke profile: `hue_step` 2.0, one saturation/lightness slice, layers {18, 27}, k ∈ {8, 16}, one seed |
 | Stages completed | preflight → data → readout-check → collect → calibrate-noop → fit → diagnostics → patch → select |
-| Stages **not** run | `validate`, `select` (operating points), `validate-paths`, `test`, `report` |
+| Stages not run | `validate`, `select` (operating points), `validate-paths`, `test`, `report` |
 
-**Headline:** the causal gate passed, and an 8-dimensional subspace at layer 27 is causally sufficient for this task. The steering comparison that the project actually rests on has not been run yet.
+## Summary
+
+The pipeline works and the causal gate passed convincingly: an **8-dimensional subspace at layer 27 is causally sufficient** — patching only those coordinates from a real red donor matches a full activation replacement (both 1.00 success), and lands just below genuinely-red behaviour.
+
+Three cheap pre-run checks then established three things the plan did not anticipate:
+
+1. **64% of ODESteer's gradient energy lies outside that subspace, and moving along it is behaviourally inert.** Displacing an activation 20 units along the gradient's off-subspace component (larger than the oracle's 16.8) changes the answer in **0 of 16** cases — less than a random direction does.
+2. **The component E2 additionally discards is productive**, not noise: it reaches p(red) = 0.54 and flips 69% of answers.
+3. **The "path through grey" prediction is falsified.** p(gray) never exceeds 0.006 in any direction at any distance.
+
+So the component the constraint removes is inert, the component it *also* removes is useful, and there is no third state to avoid. The path hypothesis loses its colour prediction outright. Total cost of learning this: about two minutes of GPU time.
+
+**Correction (after review).** An earlier version of this document concluded that the endpoint hypothesis was untestable here. That is **not established**: the check reported other-mass, while the endpoint metric is `nearest_bc` over the full nine-bin vector. At d = 20 the two in-subspace directions have almost identical other-mass (0.128 vs 0.126) but very different distributions — `on_manifold` leaves 0.046 on the start colour, `grad_in_U_off_ring` leaves **0.274**, and natural red outputs do not look like the latter. That residue is an unnaturalness signature the endpoint metric can see and the printed column cannot. Resolving it needs a re-run of `checks/premise.py` that computes `nearest_bc` against the natural reference, compared at matched behaviour rather than matched distance (§5).
+
+**What survives:** the concept subspace is causally sufficient and everything outside it is inert, which argues for *projection* (condition C) rather than manifold-following (E2) — a smaller claim than the project set out to make, but one this data already supports.
+
+**Recommendation:** still do not run the dense colour sweep — but for a narrower reason than before (§5). Run two cheap tests first: the corrected endpoint measurement, and a generation-fragility test.
 
 ## 1. Gates that passed
 
@@ -20,31 +36,33 @@
 | Answer set | Chromatic accuracy | Control accuracy | Mean answer mass |
 |---|---|---|---|
 | 6-way | 1.00 | 0.35 (gray 0.50, brown 0.19) | 0.923 |
-| **8-way (used)** | **1.00** | **1.00** (all eight classes at 1.00) | **0.900** |
+| **8-way (used)** | **1.00** | **1.00** (all eight classes) | **0.900** |
 
-The 6-way controls failing while the 8-way controls are perfect is a useful internal check: adding `gray`/`brown` was necessary, not cosmetic. Base Llama-3.1-8B does this task cleanly at the first answer token, so the readout is not a limiting factor.
+The 6-way controls failing while the 8-way controls are perfect confirms that adding `gray`/`brown` was necessary rather than cosmetic. Base Llama-3.1-8B does this task cleanly at the first answer token.
 
 ### No-op calibration
 
-Max absolute probability error **0.0** over 48 checks (2 layers × 24 prompts × batch sizes {1}), tolerance 0.02, in fp16 on MPS. Re-injecting a cached activation through the patch hook is exact, so later "did the intervention do anything?" questions are not confounded by the plumbing.
+Max absolute probability error **0.0** across 48 checks at batch size 1. Re-injecting a cached activation through the patch hook is exact, so nothing downstream is confounded by the plumbing.
+
+At batch size 16 the same check gives **3.45e-03** — the fp16 reduction order depends on batch size. Well inside the 0.02 tolerance, but it confirms `calibrate-noop` must be re-run at whatever batch size a real run uses.
 
 ### Zero and small strength on real activations
 
-From `diagnostics/small-strength.json` (1,500 audit rows, validation only, no model forwards):
+From `diagnostics/small-strength.json` (1,500 audit rows, validation only):
 
-- **T = 0 is exactly the identity** for every method and every stimulus kind (displacement 0.0000), including gray, brown and unrelated.
-- Displacement stays inside the `(1 + correction_ratio)·T` budget: 0.1085 (C-end) and 0.1032 (E2) at T = 0.1; 0.0112 and 0.0103 at T = 0.01.
-- **The eligibility gate rejects every off-concept input**: colour stimuli eligible 1.00; gray, brown and unrelated 0.00, all with `reason = rejected_start`.
+- **T = 0 is exactly the identity** for every method and stimulus kind, including gray, brown and unrelated.
+- Displacement stays inside the `(1 + correction_ratio)·T` budget: 0.1085 (C-end) and 0.1032 (E2) at T = 0.1.
+- **The eligibility gate rejects every off-concept input**: colour eligible 1.00; gray, brown and unrelated 0.00.
 
-For contrast, the ungated R0 diagnostic in the synthetic preflight moves a grey start by 3.00 and an unrelated start by 4.05. That is the failure mode the gate exists to prevent — retraction *creating* the concept on inputs that had none — and on real activations it is closed.
+For contrast, the ungated R0 diagnostic in the synthetic preflight moves a grey start by 3.00 and an unrelated start by 4.05. That failure mode — retraction *creating* the concept on inputs that had none — is closed on real activations.
 
 ### Probe
 
-Analytic gradient versus finite differences: max error **1.4e-12**, radial component 6.9e-17 (the gradient is orthogonal to x, as the normalised sketch requires).
+Analytic gradient versus finite differences: max error **1.4e-12**, radial component 6.9e-17.
 
-## 2. The substantive result: the causal gate
+## 2. The causal gate
 
-26 validation prompts whose unsteered answer is not red. Identity patch: success 0.00, p(red) 0.013, other-mass 0.068.
+26 validation prompts whose unsteered answer is not red. Identity patch: 0.00 success, p(red) 0.013, other 0.068.
 
 | Layer, k | Full donor patch | Subspace-only patch | Gate |
 |---|---|---|---|
@@ -53,83 +71,120 @@ Analytic gradient versus finite differences: max error **1.4e-12**, radial compo
 | **27, k=8 (selected)** | **1.00**, p(red) 0.596 | **1.00**, p(red) 0.611, other 0.126 | pass |
 | 27, k=16 | 1.00, p(red) 0.619 | 1.00, p(red) 0.624, other 0.137 | pass |
 
-Two readings:
+Layer 18 fails for the *full* patch too, so the answer is not yet formed there. That is a layer property, not a bug: `experiment-plan.md` §5.2 should say to run a layer scan first and only suspect the hook if full patches fail *after* the answer is represented.
 
-1. **Moving 8 PCA coordinates does everything a full activation replacement does** at layer 27. The intervention space the method depends on is real and small. Selection took k = 8 by the predeclared rule (smallest adequate dimension, then strongest effect).
-2. **Layer 18 fails for the full patch too**, so the answer is not yet formed at that site. This is a property of the layer, not a bug. `experiment-plan.md` §5.2 currently says a failed full patch means debugging the hook/readout; it should say to run a layer scan first and only suspect the hook if full patches fail *after* the answer is represented.
+## 3. Pre-run checks
 
-### The oracle ceiling (recomputed from the collection)
+Three checks, none of which existed before this review, in [`checks/`](checks/). All are read-only.
 
-| Condition | p(red) | other-mass |
+### 3.1 Oracle ceiling — `checks/oracle_ceiling.py` (no model)
+
+Scores the donor patches already saved by the `patch` stage in the same metric the arms would be judged by.
+
+| Condition | success | p(red) | other | endpoint BC |
+|---|---|---|---|---|
+| unsteered | 0.000 | 0.013 | 0.068 | **1.116** |
+| full donor patch | 1.000 | 0.596 | 0.122 | 0.0080 |
+| **subspace patch (oracle)** | 1.000 | 0.611 | 0.126 | **0.0067** |
+| natural red (floor) | — | 0.664 | 0.131 | 0.000 |
+
+The metric has a wide dynamic range (1.12 → 0.007), and the oracle sits essentially on the floor. Also surfaced: the reference split holds only **3** natural red outputs, barely above `minimum_reference_points: 2`. Any real run needs a much larger reference split.
+
+### 3.2 Arm separation — `checks/arm_separation.py` (no model)
+
+Runs the real `steer()` on collected activations; reports where each arm's endpoint lands. At T = 1 (19.2 raw units; oracle displacement 17.6), 25 eligible validation starts:
+
+| Method | Displacement | Distance to oracle |
 |---|---|---|
-| Natural prompts the model answers red (n = 18) | 0.664 | 0.123 |
-| Subspace donor patch, layer 27 k=8 (oracle) | 0.611 | 0.126 |
-| Unsteered source prompts | 0.013 | 0.068 |
-| All primary stimuli, top-class probability (n = 180) | 0.786 | 0.075 |
+| A (CAA) | 19.22 | 12.42 |
+| B (ODESteer) | 18.97 | 15.60 |
+| C (projected) | 19.19 | 11.65 |
+| C-end | 17.87 | **7.43** |
+| E2 | 15.19 | 10.76 |
+| F (spline) | 14.11 | 9.77 |
+| S (spherical) | 18.96 | 15.48 |
+| R0 (retraction only) | 0.63 | 17.59 |
 
-The oracle lands just below genuinely-red behaviour and matches its other-mass. **This is the ceiling for any steering method at this site**, and it is narrow: every comparison between B, C, C-end, E2, F and S has to fit between the unsteered baseline and roughly natural quality.
+Pairwise separations: **E2 vs C-end 12.36**, E2 vs C 15.49, E2 vs F 3.30, C vs C-end 4.80, B vs C 12.22, **B vs S 0.54**, **A vs B 12.36**.
 
-The patch outputs are already saved in `patches/layer27-k8.npz`, so the oracle's endpoint deviation can be computed in the same Bhattacharyya metric the methods are judged by, at zero extra compute. Doing that before the steering sweep fixes the headroom in advance.
+Readings:
 
-## 3. Diagnostics worth carrying forward
+- The arms genuinely differ — E2 and C-end separate by 70% of the oracle distance — so the comparison is not dead on arrival for lack of contrast.
+- **B and S are the same intervention** (0.03 apart at T = 0.25, 0.54 at T = 1, 1.26 at T = 1.5). ODESteer's gradient is already tangent to the sphere, so GeoSteer-style norm preservation is vacuous here.
+- **A and B differ by 12.4**, so unlike the ring toy the probe is not a disguised mean-difference vector.
+- The ranking flips with strength — at T = 1.5, F (6.86) and E2 (9.06) are closest to the oracle, C-end (10.22) further. Comparisons must be at matched success, never matched T.
 
-**The probe pathology reproduces on real activations** (`fits/layer27-k8-seed0`):
+### 3.3 Premise check — `checks/premise.py` (needs the model, ~400 forwards)
 
-| Metric | Train (n = 92) | Validation (n = 28) |
-|---|---|---|
-| ROC-AUC | 0.994 | 1.000 |
-| Posterior accuracy | 0.891 | 0.929 |
-| Balanced accuracy | 0.500 | 0.500 |
-| Fraction predicted positive at posterior 0.5 | **0.00** | **0.00** |
-| `log_dre > 0`: recall / false-positive rate | 1.00 / 0.256 | 1.00 / 0.269 |
+Displaces 16 real activations along five directions and decodes each. At **d = 20** (oracle distance 16.8):
 
-Ranking is essentially perfect while the posterior never crosses 0.5, so `predict()` is all-negative and balanced accuracy is exactly chance — the same artefact found in the toys, now confirmed on Llama activations with a 1:9 class balance. The pipeline reports this correctly rather than hiding it. The corrected threshold is not a sharp red detector either (26% of negatives pass), which matters only for target-set definitions, not for the gradient direction.
+| direction | p(start) | p(target) | p(gray) | other | argmax changed |
+|---|---|---|---|---|---|
+| on_manifold (toward donor, inside U) | 0.046 | 0.662 | 0.000 | 0.128 | **0.94** |
+| **grad_off_U** (gradient outside U) | 0.765 | 0.039 | 0.003 | 0.144 | **0.00** |
+| grad_in_U_off_ring | 0.274 | 0.540 | 0.000 | 0.126 | 0.69 |
+| random_off_U | 0.734 | 0.043 | 0.003 | 0.122 | 0.06 |
+| random_in_U_off_ring | 0.560 | 0.123 | 0.006 | 0.131 | 0.38 |
 
-**Geometry** (layer 27, k = 8): PCA variance ratios [0.414, 0.365, 0.094, 0.071] — the first two components carry 78%, consistent with a hue circle, but the next two are not negligible. KDE bandwidth 0.795 against a typical projected neighbour distance of 0.798. Gate coverage 0.929 on colour validation, 0.000 on controls. Strength scales: centroid distance 19.2, activation norm 34.8.
+At **d = 10**: on_manifold 0.422 / 0.315 / 0.31 changed; grad_off_U 0.817 / 0.043 / **0.00** changed; grad_in_U_off_ring 0.683 / 0.116 / 0.00 changed.
 
-## 4. What this run does not show
+Three results:
 
-- **The experiment itself has not run.** No steering evaluation, no operating points, no report.
-- **Smoke-sized fits.** 92 training activations with `neighbors: 20` means each "local" tangent uses 22% of the dataset; the local geometry is barely local. The full config (`hue_step` 0.25 → roughly 650 training points) fixes this. Do not read geometric conclusions out of these fits.
-- **One seed.** The report criterion requires consistent direction across ≥3 seeds, so this profile cannot produce a publishable comparison by construction.
-- **Upstream parity was not checked** (`preflight/report.json` → `upstream: null`). `pilot/preflight.py::upstream_check` compares the reimplemented probe against the real ODESteer kernel (features and a 10-step flow endpoint) given identical hashes and weights. A pinned checkout already exists at `toy/third_party/odesteer` after `toy/setup.sh`, so this is one `--odesteer-src` flag away. It is what certifies that condition B is actually ODESteer.
+1. **Movement outside the subspace is inert.** `grad_off_U` carries 64% of the probe gradient's energy — it is exactly what B keeps and what C and E2 discard — and 20 units along it changes nothing: p(target) stays at its baseline 0.039–0.045, and the argmax never changes. It is *less* disruptive than a random direction of the same length.
+2. **What E2 additionally discards is productive.** `grad_in_U_off_ring` — the in-subspace component with the local tangent removed, which E2's projection throws away — reaches p(red) 0.540 and flips 69% of answers, most of what the full move achieves. E2 is discarding signal, not noise, which is consistent with its smaller displacement per unit T in §3.2.
+3. **No grey anywhere.** p(gray) never exceeds 0.006 in any direction at any distance. Intermediate states are a blend of the start and target colours (at d = 10: start 0.42, target 0.32, everything else 0.16), never a third colour.
 
-## 5. Implication for the project's value
+**Caveat on labelling.** `on_manifold` is the straight line inside the subspace toward the donor's coordinates — a chord through the disc, not a path along the hue ring. So this run does not separate "along the ring" from "across the interior". What it establishes unambiguously is the part that matters: inside the subspace movement drives the answer, outside it movement does nothing.
 
-An 8-dimensional **linear** subspace already reaches near-natural output quality at layer 27. That validates the architecture, but it also compresses the room in which "estimated data geometry beats plain subspace restriction" could show a gain — condition C may already sit close to the ceiling. The C vs C-end vs E2 comparison is now the whole experiment, and the margin available to it is visibly small.
+## 4. What this means
 
-This does not make the run a negative result. It makes the next run cheap and decisive: if every method lands near the oracle, the answer arrives immediately, and "repeated manifold following does not beat one endpoint projection" is itself a reportable finding.
+**The endpoint hypothesis is narrowed, not dead.** It was framed as "at matched success, E2 causes less unwanted change than simpler controls". For the *off-subspace* excursion the answer is clear: that component is behaviourally inert, so the B-vs-C contrast is bounded at roughly 0.016 of other-mass and zero success — there is nothing there to win.
 
-## 6. Recommended next steps
+For the *in-subspace, off-ring* excursion — the component E2's tangent projection removes — the question is open, and this check could not answer it because it printed other-mass rather than the endpoint metric. The two directions differ sharply in shape (residual mass on the start colour 0.046 vs 0.274) while matching on other-mass, so `nearest_bc` may well discriminate where the printed column cannot. Two further cautions apply to any such comparison: the per-row SD of other-mass is 0.014–0.017, giving a standard error near 0.0035 at n = 16, against a batch-16 plumbing error of 3.45e-03; and `on_manifold`'s other-mass is non-monotonic in distance (0.074, 0.082, 0.102, 0.159, 0.128), so comparing at matched distance rather than matched behaviour flatters whichever arm has already committed to the target.
 
-1. Compute the oracle's endpoint deviation from `patches/layer27-k8.npz` and record it as the predeclared ceiling.
-2. Run `preflight --odesteer-src toy/third_party/odesteer` to certify the B baseline.
-3. Move to the full colour config with ≥3 seeds and the full strength grid; keep layer 27, k = 8.
-4. Before interpreting E2 versus F, sweep the tangent dimension (`tangent_dim` is currently fixed at 1, which prescribes that the concept is a curve — see §7).
-5. Check that integrator checkpoints agree with endpoints from the strength sweep, which is what licenses reading path metrics as "dialling strength".
+**The path hypothesis loses its colour prediction.** Crossing the interior of the hue disc does not produce grey, so there is no "sensible versus nonsensical intermediate state" contrast to measure. The model interpolates between the start and target colours whichever way it is moved.
 
-## 7. Code review
+**The premise splits in two, and only one half is settled.** Manifold-constrained steering rests on off-manifold states being *bad*. "Off-manifold" turns out to mean two different things here. Outside the concept subspace, states are *ignored* — a constraint that prevents something harmless cannot pay for itself, and that disposes of the B-vs-C contrast. Inside the subspace but off the hue ring, states are emphatically not ignored: they flip 69% of answers. Whether they are also *worse* is the open question, and it is the only place left where E2's tangent projection could earn anything.
 
-Reviewed `pilot/` (2,198 lines) by reading, and `toy/` with an independent review agent. No correctness bug was found that would invalidate results. Verified correct by inspection: the probe's sketch adjoint and normalisation Jacobian match ODESteer's analytic VJP; the correction budget is capped at `ratio·T` independent of step and retraction counts, and vanishes as T → 0; left padding with explicit `position_ids`; gray+grey token aggregation with an overlap check and an unrenormalised `other` bin; PCA/bandwidth/probe fitted on train only with gate thresholds from validation; the paired bootstrap resamples prompts with seeds averaged inside and applies a Bonferroni correction; donors are chosen nearest in the preserved residual.
+**What the data does support** is smaller and cleaner: the concept subspace is causally sufficient, and the majority of ODESteer's gradient lies outside it doing nothing. "Project the steering direction onto the concept subspace and discard the rest" is condition C, not E2 — a real and cheap improvement to ODESteer, already supported by the numbers above.
 
-Findings, in rough priority order:
+## 5. Recommendation
+
+**Do not run the dense colour sweep yet**, and probably not at all. The path half is settled — no grey, so nothing to measure. The endpoint half needs one more minute of compute before it can be judged, and even the optimistic outcome most likely favours the simpler arm: the premise check showed that what E2 discards is productive, so E2's only route to a win is a more natural endpoint — which is precisely what **C-end** delivers by keeping the productive signal and snapping onto the manifold once. C-end was already closest to the oracle at T = 1 (7.43 versus E2's 10.76). "C-end matches E2, prefer the simpler method" is an outcome the plan predeclared.
+
+**Test 1 — the corrected endpoint measurement (~1 minute).** Re-run `checks/premise.py` saving the per-state probabilities, compute `nearest_bc` against the same natural target reference the `evaluation` stage uses, and compare directions at matched behaviour (equal fraction of answers flipped) rather than matched distance.
+
+**Test 2 — generation fragility (~30 minutes).** Take the d = 20 `grad_off_U` states and matched `on_manifold` states, generate 30–40 tokens from each, and compare perplexity under the unsteered model plus repetition and coherence.
+
+- If off-subspace movement degrades generation while leaving the answer token untouched, the manifold story is alive — the colour task was simply too insensitive a readout, and the project should move to a generation-based measurement.
+- If generation is unaffected too, off-subspace steering is genuinely inert in this model and the premise itself is wrong.
+
+Either way that is roughly 30 minutes of work and a couple of minutes of compute, and it determines whether the project continues.
+
+**If it continues,** the testbed should be a concept whose behaviour is *not* a near-linear readout of a small subspace, and the readout should be one that can register damage — which points at the deferred phases (emotion, open-ended generation) rather than at more colour work.
+
+## 6. Code review
+
+Reviewed `pilot/` (2,198 lines) by reading, and `toy/` with an independent review agent. No correctness bug was found that would invalidate results.
+
+Verified correct by inspection: the probe's sketch adjoint and normalisation Jacobian match ODESteer's analytic VJP; the correction budget is capped at `ratio·T` independent of step and retraction counts and vanishes as T → 0; left padding with explicit `position_ids`; gray+grey aggregation with an overlap check and an unrenormalised `other` bin; PCA, bandwidth and probe fitted on train only with gate thresholds from validation; the paired bootstrap resamples prompts with seeds averaged inside, with Bonferroni correction; donors chosen nearest in the preserved residual.
 
 | # | Where | Issue |
 |---|---|---|
-| 1 | `toy/geometries.py:83` | The curve is embedded with a zero third coordinate but 3 PCs are kept, so PC3 is noise of sd 0.385 — larger than the hard-coded bandwidth 0.25. The retraction partly chases noise and `max_gap` is inflated about 3×. **Affects the numbers quoted in plan §9.4**; the qualitative conclusions likely survive. Fix: keep 2 components and rerun. |
-| 2 | `toy/run_all.py` | Writes results unconditionally, so a quick smaller run silently overwrites the committed 6-replicate results the plan cites. Write to a configuration-derived path or refuse to overwrite. |
-| 3 | `pilot/steering.py:70, :98` | `caa` is recomputed from the full training matrix on every call, and `probe.grad(x)` is computed before the method dispatch — so condition A and E3 pay for a gradient they never use. Precompute `caa` in `Geometry`; move the gradient into the branches that need it. |
-| 4 | `pilot/steering.py` (`unit`), `pilot/geometry.py:127` | Below `tiny_gradient`, or with an unreachable graph score, the step silently becomes zero while `reason` still reads `ok`. A stalled run is then indistinguishable from a completed one in the per-row records. Give each a distinct `reason`. |
-| 5 | `toy/ring_toy.py:223`, `:70` | `clf_pos` and `train_acc` are artefacts of the posterior threshold (`train_acc` 0.8330 versus a majority rate of 0.8340). Report AUC or the corrected threshold instead. |
-| 6 | `toy/ring_toy.py:221` | `swing` subtracts raw `atan2` degrees with no wrapping; latent today, but it would corrupt exactly the 180° case the plan highlights. |
-| 7 | `toy/setup.sh:13` | Dependency install is guarded on the venv directory rather than on success, so a failed download leaves a venv that reports "ready" while imports fail. |
-| 8 | `pilot/preflight.py:108` | `"passed": True` is hardcoded; failures raise instead, but a constant field named `passed` invites a misleading grep. |
-| 9 | `pilot/tests` | The upstream parity check is not exercised by the suite; it could run automatically when `toy/third_party/odesteer` exists. |
-| 10 | `toy/ring_toy.py:119` | The `Cond` docstring calls D "density only" although the code adds the classifier direction; the plan describes it correctly. |
+| 1 | `toy/geometries.py:83` | The curve is embedded with a zero third coordinate but 3 PCs are kept, so PC3 is noise of sd 0.385 — larger than the hard-coded bandwidth 0.25. The retraction partly chases noise and `max_gap` is inflated ~3×. **Affects the numbers in plan §9.4**; qualitative conclusions likely survive. Fix: keep 2 components, rerun |
+| 2 | `toy/run_all.py` | Writes results unconditionally, so a smaller run silently overwrites the committed results the plan cites |
+| 3 | `pilot/steering.py:70, :98` | `caa` is recomputed from the full training matrix every call, and `probe.grad(x)` runs before the method dispatch — A and E3 pay for a gradient they never use |
+| 4 | `pilot/steering.py` (`unit`), `pilot/geometry.py:127` | Below `tiny_gradient`, or with an unreachable graph score, the step silently becomes zero while `reason` still reads `ok` |
+| 5 | `toy/ring_toy.py:223`, `:70` | `clf_pos` and `train_acc` are artefacts of the posterior threshold (`train_acc` 0.8330 vs a majority rate of 0.8340) |
+| 6 | `toy/ring_toy.py:221` | `swing` subtracts raw `atan2` degrees with no wrapping; latent, but it would corrupt the 180° case |
+| 7 | `toy/setup.sh:13` | Dependency install is guarded on the venv directory rather than on success |
+| 8 | `pilot/preflight.py:108` | `"passed": True` is hardcoded; failures raise instead, but the constant field invites a misleading grep |
+| 9 | `pilot/tests` | The upstream ODESteer parity check is not exercised by the suite; it could run when `toy/third_party/odesteer` exists. It was also skipped in this run (`preflight: upstream: null`) |
+| 10 | `pilot/model.py:52` | `torch_dtype` is deprecated in current transformers; switch to `dtype` |
 
-## 8. Design gaps in the pilot (not code defects)
+## 7. Design gaps in the pilot (not code defects)
 
-- **The "ODE" half is untested.** `steps` is global in the config, so there is no single-step control. The obvious comparator is upstream's own `StepODESteer`: one step of the same total length. Without it, an E2 win says "constrained beats unconstrained", not "multi-step integration earns its cost". Adding it needs per-method step counts, because `steering` settings are part of the artifact fingerprint and two configs cannot be compared inside one report.
-- **The intrinsic dimension is prescribed.** `tangent_dim: 1` is a fixed scalar with no sweep. On the primary fixed-saturation slice the concept really is a 1-D curve, so this is correct — but by using ground-truth knowledge of the geometry, which weakens "estimated, not prescribed". Report local eigenvalue spectra and sweep m ∈ {1, 2}.
-- **Colours can only show parity, never value.** The payoff of not prescribing the curve matters where the curve cannot be prescribed; on a hue circle with six labelled classes the spline (condition F) is trivially available. The colour pilot's role is falsification — it can kill the idea cheaply, it cannot establish the payoff. Plan §5.4 should say so.
-- **"Unwanted change" is narrow.** It currently means the answer-token distribution, other-mass, and off-target KL on 12 unrelated prompts. No generation happens anywhere in the pilot, so fluency and content preservation are untested. More unrelated controls are one forward pass each.
+- **The "ODE" half is untested.** `steps` is global in the config, so there is no single-step control. Without one, an E2 win would say "constrained beats unconstrained", not "multi-step integration earns its cost".
+- **The intrinsic dimension is prescribed.** `tangent_dim: 1` is a fixed scalar — correct for a hue curve, but by using ground-truth knowledge of the geometry, which weakens "estimated, not prescribed".
+- **Colours can only falsify, never demonstrate.** The payoff of not prescribing the curve matters where the curve cannot be prescribed; on a hue circle with six labelled classes the spline is trivially available. The pilot's role was falsification — and that is exactly what it delivered.
+- **"Unwanted change" was narrow.** It meant the answer-token distribution, other-mass, and off-target KL on 12 unrelated prompts. No generation happens anywhere in the pilot, which is precisely the gap §5 proposes to close.
