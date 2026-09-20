@@ -90,3 +90,65 @@ Here are the directions I'd consider, ranked.
 **Pair 1 and 2.** They share infrastructure — per-token steering during generation, a fluency/capability readout, the support gate — and between them they cover both halves of the idea: the ODE earns its keep in 1 (the target moves), the manifold earns its keep in 2 (minimality is the objective). Both have a clear kill condition, and both are evaluated on things people already care about.
 
 **Order:** the 30-minute generation-fragility test first, on states we already have. It answers the one question both directions depend on — whether off-manifold has a cost this model can express at all. If it doesn't even in free generation, then 1 and 2 both lose their foundation and idea 3 becomes the honest project, because "off-manifold is behaviourally free" would itself be the finding worth publishing.
+
+---
+
+## Additional brainstorm: context-dependent targets with multiple valid outcomes
+
+These candidates exploit the distinction between steering toward a **learned target region** and specifying one endpoint. The desired behaviour depends on the starting context; local geometry could help preserve that context while the ODE searches for an acceptable outcome. They do not require a known concept ordering or a single global manifold.
+
+### 6. Evidence-sensitive answering: answer, retrieve, clarify, or abstain
+
+**The setting.** Give the model questions with complete, missing, contradictory, or irrelevant evidence. Sometimes it should answer; sometimes request clarification, retrieve information, or abstain. Start with generated documents about fictional entities so evidence sufficiency and factual correctness are mechanically checkable.
+
+**Why ODE + manifold.** A classifier objective rewards evidence-appropriate behaviour rather than generic uncertainty. Repeated updates could adapt the direction as the decision changes; local geometry could retain the question, entities, and available facts. The target is a family of appropriate responses, not a common "I don't know" activation.
+
+**Decisive measurement.** Fewer unsupported answers at matched answer coverage and retrieval budget, with accuracy preserved on answerable questions. Hold out document templates and domains. Include cases where adding one fact should change abstention into a correct answer.
+
+**Kill condition.** If an uncertainty threshold, prompting, or a single corrected activation step gives the same tradeoff, the combined method has not earned its complexity.
+
+### 7. Tool safety while preserving task completion
+
+**The setting.** A simulated agent edits records or files and calls APIs under explicit permissions. Mix authorised requests, requests requiring confirmation, and untrusted instructions embedded in retrieved documents. All actions run in a disposable simulator.
+
+**Why ODE + manifold.** Safe outcomes differ by context: execute, choose a permitted alternative, ask permission, or ignore an injection and continue. A safety objective guides adaptive updates; neighbourhoods of successful executions could preserve the intended operation, arguments, and task state. This tests useful safety rather than indiscriminate refusal.
+
+**Decisive measurement.** Fewer unauthorised actions at matched task completion, including unfamiliar tool schemas and permission combinations. A simulator supplies independent success and violation checks. Begin with steering only at action-selection boundaries.
+
+**Kill condition.** If the benefit comes entirely from suppressing tool use, or an equally informed router achieves the same outcome, there is no demonstrated advantage from the geometry.
+
+### 8. Resist social pressure while remaining responsive to evidence
+
+**The setting.** Present the same factual or reasoning question with different user stances: correct, mistaken, confident, insistent, or accompanied by genuinely useful evidence. The goal is to reduce sycophancy without making the model reflexively disagree.
+
+**Why ODE + manifold.** The target is evidence-sensitive independence. A classifier-guided flow could remove inappropriate deference while a local correction preserves substantive reasoning, tone, and willingness to update. Different prompts should reach agreement, disagreement, or uncertainty—not a single contrarian endpoint.
+
+**Decisive measurement.** Correct answers survive irrelevant pressure, while relevant evidence causes appropriate changes. Use paired prompts to measure correctness, pressure-induced answer flips, and evidence-responsive updates separately.
+
+**Kill condition.** If disagreement rises without improved correctness and evidence sensitivity, the method is steering style rather than improving judgement.
+
+### 9. Repair a solution without destroying what already works
+
+**The setting.** Give the model code with a small bug and a test suite, or a partially valid structured plan with an executable checker. Several repairs are acceptable, but most existing behaviour should survive.
+
+**Why ODE + manifold.** A learned repair-success objective supplies a target region. Local geometry estimated from successful continuations could preserve algorithm choice, interfaces, and variable relationships. Adaptive updates could navigate toward a repair without dragging every solution toward one reference implementation.
+
+**Decisive measurement.** More newly passing tests with fewer regressions, at matched generation and verification budgets. Keep evaluation tests hidden from the steering objective; compare against ordinary verifier feedback and repeated sampling.
+
+**Kill condition.** If gains disappear against equally budgeted retries or a single-step correction, there is no evidence that adaptive geometric steering contributes.
+
+### 10. Preserve several valid strategies instead of collapsing onto one
+
+**The setting.** Construct tasks admitting distinct valid approaches: several correct algorithms, explanations at different levels, or alternative permitted action plans. Fit one success classifier across all approaches without giving the steering method a desired strategy label.
+
+**Why ODE + manifold.** This directly tests the value of targeting a region. A state-dependent flow could reach the appropriate nearby successful region while local geometry preserves the starting strategy. Use separate local models where support is disconnected rather than assuming every region can be joined by a valid path.
+
+**Decisive measurement.** Higher success while retaining appropriate strategy diversity and input-specific choices. Compare with a global target centroid, a context-selected target exemplar, and unconstrained classifier flow. Include held-out combinations of strategy and task.
+
+**Kill condition.** If a nearest suitable exemplar plus one corrected step performs equally well, endpoint selection explains the benefit without needing an ODE.
+
+### A shared experiment for these candidates
+
+Compare a single classifier-gradient step, that step plus local correction, adaptive ODE steering, ODE plus endpoint correction, and ODE plus continuous correction. Include global-subspace and norm-preserving controls where relevant. Match task success or intervention cost and measure the other axis, using outcomes independent of the steering classifier.
+
+The central question is whether **adaptive updates and local geometry together preserve context better than either component alone**. Evidence-sensitive answering offers a relatively contained first test; simulated tool safety offers the stronger application if that mechanism works.
