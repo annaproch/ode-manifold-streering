@@ -1,0 +1,360 @@
+{
+  "batch_size": 1,
+  "device": "mps",
+  "max_error": 0.0,
+  "model": {
+    "chat_template": false,
+    "dtype": "float16",
+    "layers": 32,
+    "local_config_hash": null,
+    "name": "meta-llama/Llama-3.1-8B",
+    "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+    "token_ids": [
+      [
+        1171,
+        2579,
+        3816,
+        6161
+      ],
+      [
+        19087,
+        22725,
+        35264,
+        43069
+      ],
+      [
+        14071,
+        26541,
+        28969,
+        48799
+      ],
+      [
+        6307,
+        7997,
+        13553,
+        20147
+      ],
+      [
+        6437,
+        8868,
+        10544,
+        12481
+      ],
+      [
+        25977,
+        41489,
+        57607,
+        75613
+      ],
+      [
+        11912,
+        18004,
+        20366,
+        24255,
+        26769,
+        29274,
+        35671,
+        60265
+      ],
+      [
+        10690,
+        14198,
+        49488,
+        65561
+      ]
+    ]
+  },
+  "note": "Inspect measured error before proceeding. Tolerance is never automatically widened.",
+  "passed": true,
+  "rows": [
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "2f5a709aa128b30d8981",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "144a393b14c187c77d6e",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "0f99529446c58d7cdf02",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "0a2bc5e9691528ced71d",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "af295e75c243e3e90539",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "1a6ebfd8916b0eab0746",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "159d27e1e05afe716211",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "30643c24050b7d665770",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "cfa1552e5ff2c5c613f9",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "27c7a6d1edd90e342935",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "324d89f2c817d2ff76c1",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "653dba43116c568a3f91",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "dcaed6f1bce36a894c83",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "297769037343e013aa85",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "39d74bb2bc01f4405539",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "98476a8511b16a19345f",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "f38c0860584822b3c67e",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "3b7ff5733ab34a7c9b2d",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "89fe1b68382130abdf39",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "b794f3134e491c4cc548",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "3f608e45724fda60b7ab",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "dd333f0b2f5c70d11b2d",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "d295a44e5a4944357ddd",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "47e77435920f4763be07",
+      "layer": 18
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "2f5a709aa128b30d8981",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "144a393b14c187c77d6e",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "0f99529446c58d7cdf02",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "0a2bc5e9691528ced71d",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "af295e75c243e3e90539",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "1a6ebfd8916b0eab0746",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "159d27e1e05afe716211",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "30643c24050b7d665770",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "cfa1552e5ff2c5c613f9",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "27c7a6d1edd90e342935",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "324d89f2c817d2ff76c1",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "653dba43116c568a3f91",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "dcaed6f1bce36a894c83",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "297769037343e013aa85",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "39d74bb2bc01f4405539",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "98476a8511b16a19345f",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "f38c0860584822b3c67e",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "3b7ff5733ab34a7c9b2d",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "89fe1b68382130abdf39",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "b794f3134e491c4cc548",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "3f608e45724fda60b7ab",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "dd333f0b2f5c70d11b2d",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "d295a44e5a4944357ddd",
+      "layer": 27
+    },
+    {
+      "batch_size": 1,
+      "error": 0.0,
+      "id": "47e77435920f4763be07",
+      "layer": 27
+    }
+  ],
+  "tolerance": 0.02
+}

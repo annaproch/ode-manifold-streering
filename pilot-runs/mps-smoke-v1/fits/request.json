@@ -1,0 +1,44 @@
+{
+  "fingerprint": "e62711571dcf0be49d830aff06a83b5278810bf6400a08b315f3c2eca0beaa23",
+  "identity": {
+    "collection": "e8a86ac05b41e2306a6573b8b22a74c9dc2a0fef70c3228f4bec615ad5f038fd",
+    "fit": {
+      "bandwidth_factors": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "coef0": 1.0,
+      "dimensions": [
+        8,
+        16
+      ],
+      "gamma": 0.1,
+      "gate_quantile": 0.99,
+      "graph_neighbors": 8,
+      "graph_targets": "labels",
+      "graph_top_fraction": 0.167,
+      "layers": [
+        18,
+        27
+      ],
+      "logistic_c": 1.0,
+      "neighbors": 20,
+      "seeds": [
+        0
+      ],
+      "sketch_features": 8000,
+      "tangent_dim": 1,
+      "target": "red"
+    },
+    "graph": false
+  },
+  "source_provenance": {
+    "files": [
+      "probe.py",
+      "geometry.py",
+      "pipeline.py"
+    ],
+    "sha256": "938c2b150b1b16209d82e725bb1f3ed1f7bcaa494795220cda5e6439aa70e2fa"
+  }
+}

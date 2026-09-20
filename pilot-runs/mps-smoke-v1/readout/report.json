@@ -1,0 +1,239 @@
+{
+  "eight": {
+    "answer_mass_population": "all labeled stimuli",
+    "chromatic_accuracy": 1.0,
+    "control_accuracy": 1.0,
+    "mean_answer_mass": 0.8999493718147278,
+    "per_class_accuracy": {
+      "blue": 1.0,
+      "brown": 1.0,
+      "gray": 1.0,
+      "green": 1.0,
+      "orange": 1.0,
+      "purple": 1.0,
+      "red": 1.0,
+      "yellow": 1.0
+    },
+    "seconds": 5.42136783402384
+  },
+  "metadata": {
+    "chat_template": false,
+    "device": "mps",
+    "dtype": "float16",
+    "layers": 32,
+    "local_config_hash": null,
+    "name": "meta-llama/Llama-3.1-8B",
+    "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+    "token_ids": [
+      [
+        1171,
+        2579,
+        3816,
+        6161
+      ],
+      [
+        19087,
+        22725,
+        35264,
+        43069
+      ],
+      [
+        14071,
+        26541,
+        28969,
+        48799
+      ],
+      [
+        6307,
+        7997,
+        13553,
+        20147
+      ],
+      [
+        6437,
+        8868,
+        10544,
+        12481
+      ],
+      [
+        25977,
+        41489,
+        57607,
+        75613
+      ],
+      [
+        11912,
+        18004,
+        20366,
+        24255,
+        26769,
+        29274,
+        35671,
+        60265
+      ],
+      [
+        10690,
+        14198,
+        49488,
+        65561
+      ]
+    ],
+    "versions": {
+      "numpy": "2.5.3",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "torch": "2.14.0",
+      "transformers": "4.57.1"
+    }
+  },
+  "model": {
+    "chat_template": false,
+    "dtype": "float16",
+    "layers": 32,
+    "local_config_hash": null,
+    "name": "meta-llama/Llama-3.1-8B",
+    "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+    "token_ids": [
+      [
+        1171,
+        2579,
+        3816,
+        6161
+      ],
+      [
+        19087,
+        22725,
+        35264,
+        43069
+      ],
+      [
+        14071,
+        26541,
+        28969,
+        48799
+      ],
+      [
+        6307,
+        7997,
+        13553,
+        20147
+      ],
+      [
+        6437,
+        8868,
+        10544,
+        12481
+      ],
+      [
+        25977,
+        41489,
+        57607,
+        75613
+      ],
+      [
+        11912,
+        18004,
+        20366,
+        24255,
+        26769,
+        29274,
+        35671,
+        60265
+      ],
+      [
+        10690,
+        14198,
+        49488,
+        65561
+      ]
+    ]
+  },
+  "passed": true,
+  "row_ids": [
+    "091d007ea84ac0b97cbc",
+    "0c7e81c0cbcea1138013",
+    "0ea1e923921756001976",
+    "0f99529446c58d7cdf02",
+    "14281f6e810cd755e004",
+    "159d27e1e05afe716211",
+    "1c9da55ddc86f969eb49",
+    "215b16505a34372a8433",
+    "27c7a6d1edd90e342935",
+    "2f5a709aa128b30d8981",
+    "30c6e32c4f7879647944",
+    "316f28f7a640914f9d6c",
+    "324d89f2c817d2ff76c1",
+    "32b36fdb19c5ac26f804",
+    "39d74bb2bc01f4405539",
+    "3f608e45724fda60b7ab",
+    "402b54707d0b4a30c58b",
+    "42474853a7dacf9aa485",
+    "46913294832442e6c1cf",
+    "49a8d7782295e327dfc0",
+    "4aebf8d71bcdae1ca4d5",
+    "4c8fd04d503ae0d367f1",
+    "4cdf3a0e884b421b78f3",
+    "507992ffd68e99099640",
+    "57665b3a09a8b73fb71e",
+    "598a5c7551f4f48f8365",
+    "59f08c13f16073b743b2",
+    "5a5128a0402c5bf705a5",
+    "5e2c93ca53b4df2f773e",
+    "60914b809382824dd3e8",
+    "615fe8f799231b6f22af",
+    "663cf1d2322877c1f8e0",
+    "7ce9316de27ba8dc2255",
+    "80ad914b05fcdb335f9a",
+    "8714ddb406c16e0a6887",
+    "8980f5286247137be6e9",
+    "89fe1b68382130abdf39",
+    "910875b41a9ccb77df64",
+    "9718259c41239c9814eb",
+    "9b7e189024f22717f73f",
+    "9fd17d46883363a78beb",
+    "ac6dad4a07c4f94b9eac",
+    "af295e75c243e3e90539",
+    "b1a494a4d51c72231de2",
+    "b6f5752bdada71ca3aac",
+    "bfad617db8336dd6b5d6",
+    "c6bdbf6b537c5c6f568a",
+    "cfa1552e5ff2c5c613f9",
+    "dcaed6f1bce36a894c83",
+    "dd333f0b2f5c70d11b2d",
+    "e069d99ead811112734e",
+    "e0eb0b2a34a0794cb0b7",
+    "e17381d0f9314a78a845",
+    "e21aa06bfb6804f9f7dc",
+    "e3415c1cc947cf5abd7c",
+    "e7355026fb4e0aa6c357",
+    "f0ac2b2a321294a4b6db",
+    "f3151db5bfecbe054e06",
+    "f38c0860584822b3c67e",
+    "f3e5723b0c746ba28acb"
+  ],
+  "settings": {
+    "extended": true,
+    "extended_accuracy_ratio": 0.9,
+    "maximum_prompts": 100,
+    "minimum_accuracy": 0.7,
+    "minimum_answer_mass": 0.5,
+    "minimum_control_accuracy": 0.7
+  },
+  "six": {
+    "answer_mass_population": "chromatic stimuli only",
+    "chromatic_accuracy": 1.0,
+    "control_accuracy": 0.35294117647058826,
+    "mean_answer_mass": 0.9234408140182495,
+    "per_class_accuracy": {
+      "blue": 1.0,
+      "brown": 0.1875,
+      "gray": 0.5,
+      "green": 1.0,
+      "orange": 1.0,
+      "purple": 1.0,
+      "red": 1.0,
+      "yellow": 1.0
+    },
+    "seconds": 5.728355791979993
+  }
+}

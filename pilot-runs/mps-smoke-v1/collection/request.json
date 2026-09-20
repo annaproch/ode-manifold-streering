@@ -1,0 +1,32 @@
+{
+  "fingerprint": "e8a86ac05b41e2306a6573b8b22a74c9dc2a0fef70c3228f4bec615ad5f038fd",
+  "identity": {
+    "format": 2,
+    "layers": [
+      18,
+      27
+    ],
+    "model": {
+      "batch_size": 1,
+      "cache_dir": null,
+      "chat_template": false,
+      "device": "mps",
+      "dtype": "float16",
+      "local_files_only": true,
+      "max_length": 256,
+      "name": "meta-llama/Llama-3.1-8B",
+      "noop_tolerance": 0.02,
+      "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+      "threads": 8
+    },
+    "readout_extended": true,
+    "rows": "f0fcd98d506da96c73db95f9e7480c770be585aa28730ce637427199116a224c"
+  },
+  "source_provenance": {
+    "files": [
+      "data.py",
+      "model.py"
+    ],
+    "sha256": "195fcd71444464cb2ca7540035ac6acf73479483597a031e1cf4de315f790850"
+  }
+}

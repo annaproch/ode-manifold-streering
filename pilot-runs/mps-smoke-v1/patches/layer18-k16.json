@@ -1,0 +1,31 @@
+{
+  "conditions": {
+    "full": {
+      "other": 0.12921389937400818,
+      "seconds": 2.5529752069705864,
+      "success": 0.5,
+      "target_probability": 0.3930419385433197
+    },
+    "identity": {
+      "other": 0.06839238852262497,
+      "seconds": 2.4903254950404516,
+      "success": 0.0,
+      "target_probability": 0.012880267575383186
+    },
+    "subspace": {
+      "other": 0.13077020645141602,
+      "seconds": 2.5693087079998804,
+      "success": 0.5,
+      "target_probability": 0.39030101895332336
+    }
+  },
+  "count": 26,
+  "dimension": 16,
+  "fits": [
+    "layer18-k16-seed0"
+  ],
+  "identity_max_error": 0.0,
+  "layer": 18,
+  "passed": false,
+  "request": "09b9567f8ef27b5cef17bab48c73cc67548c54d9841795442a450c420eeba632"
+}

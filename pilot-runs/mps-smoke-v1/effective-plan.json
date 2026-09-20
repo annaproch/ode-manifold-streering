@@ -1,0 +1,143 @@
+{
+  "configuration": {
+    "output": "pilot-runs/mps-smoke-v1",
+    "model": {
+      "name": "meta-llama/Llama-3.1-8B",
+      "revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b",
+      "device": "mps",
+      "dtype": "float16",
+      "batch_size": 1,
+      "local_files_only": true,
+      "cache_dir": null,
+      "chat_template": false,
+      "max_length": 256,
+      "threads": 8,
+      "noop_tolerance": 0.02
+    },
+    "data": {
+      "hue_step": 2.0,
+      "context_hue_step": 6.0,
+      "saturations": [
+        0.8
+      ],
+      "lightnesses": [
+        0.5
+      ],
+      "primary_saturation": 0.8,
+      "primary_lightness": 0.5,
+      "templates": [
+        "main"
+      ],
+      "seed": 2718,
+      "split_fractions": {
+        "train": 0.45,
+        "reference": 0.1,
+        "validation": 0.225,
+        "test": 0.225
+      }
+    },
+    "readout": {
+      "extended": true,
+      "minimum_accuracy": 0.7,
+      "minimum_answer_mass": 0.5,
+      "extended_accuracy_ratio": 0.9,
+      "minimum_control_accuracy": 0.7,
+      "maximum_prompts": 100
+    },
+    "fit": {
+      "layers": [
+        18,
+        27
+      ],
+      "dimensions": [
+        8,
+        16
+      ],
+      "seeds": [
+        0
+      ],
+      "sketch_features": 8000,
+      "gamma": 0.1,
+      "coef0": 1.0,
+      "logistic_c": 1.0,
+      "neighbors": 20,
+      "tangent_dim": 1,
+      "gate_quantile": 0.99,
+      "bandwidth_factors": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "target": "red",
+      "graph_neighbors": 8,
+      "graph_targets": "labels",
+      "graph_top_fraction": 0.167
+    },
+    "patch": {
+      "minimum_success": 0.8,
+      "maximum_prompts": 100
+    },
+    "steering": {
+      "methods": [
+        "none",
+        "A",
+        "R0",
+        "B",
+        "C",
+        "C-end",
+        "E2",
+        "F",
+        "S"
+      ],
+      "strengths": [
+        0.0,
+        1.0
+      ],
+      "strength_scale": "centroid_distance",
+      "steps": 10,
+      "retractions": 3,
+      "correction_ratio": 0.25,
+      "checkpoints": 3,
+      "tiny_gradient": 1e-10,
+      "support_multiplier": 3.0,
+      "additive_weight": 1.0
+    },
+    "evaluation": {
+      "source_bands": [
+        90,
+        120,
+        150,
+        180
+      ],
+      "band_halfwidth": 10,
+      "maximum_prompts": 0,
+      "success_level": 0.8,
+      "success_tolerance": 0.05,
+      "bootstrap_samples": 500,
+      "bootstrap_seed": 108,
+      "minimum_reference_points": 2,
+      "minimum_band_prompts": 1,
+      "minimum_antipodal_prompts": 1,
+      "maximum_decode_examples": 1000,
+      "endpoint_practical_improvement": null,
+      "path_practical_improvement": null
+    }
+  },
+  "sequence": [
+    "data",
+    "estimate",
+    "preflight",
+    "readout-check",
+    "collect",
+    "calibrate-noop",
+    "fit",
+    "diagnostics",
+    "patch",
+    "validate",
+    "select",
+    "validate-paths",
+    "test",
+    "report"
+  ],
+  "note": "Configuration display only. No model loaded, files created, or experiment run."
+}
