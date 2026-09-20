@@ -1,0 +1,5 @@
+{
+  "output": "pilot-runs/mps-colour",
+  "model": {"device": "mps", "dtype": "float16", "batch_size": 4, "threads": 8},
+  "data": {"templates": ["main", "paraphrase"]}
+}

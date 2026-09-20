@@ -1,6 +1,6 @@
 # Experiment plan: ODE steering constrained to a concept manifold
 
-*Status: consolidated 2026-09-19. This is the single current plan, incorporating the design reviews and follow-up corrections. No LLM experiment has been run. Committed CPU toy results are in §9; additional seed-0 review diagnostics are identified separately. The zero/small-strength safeguards below are requirements for the pilot, not already implemented fixes.*
+*Status: consolidated 2026-09-19; implementation added 2026-09-20. This is the single current plan, incorporating the design reviews and follow-up corrections. No LLM experiment has been run. Committed CPU toy results are in §9; additional seed-0 review diagnostics are identified separately. The new CPU/CUDA/MPS pilot code and safeguards have been written in [`pilot/`](pilot/README.md), but have not been executed or tested. The user explicitly requested stopping before execution.*
 
 **Decision: pursue one bounded real-model pilot.** Run CPU controls and a 50–100-prompt colour/readout and donor-patching check first. Expand to a dense colour pilot only if the intervention space causally controls the answer. The broader roadmap is conditional (§6); the immediate work is the gated colour pilot.
 
@@ -87,10 +87,12 @@ Before using E2 in the pilot:
 - Make the deployed operation exactly the identity at T = 0. Separately retain a **retraction-only diagnostic control**, with zero directional step and the same correction count, to expose the correction's own effect.
 - Check a sequence of small positive T values. An early return at zero alone is insufficient: total displacement must approach zero as T approaches zero. Choose and document a correction budget that vanishes with strength; the precise rule is an implementation decision still to be tested.
 - Freeze a near-manifold eligibility rule on validation data, applied to the original activation before any correction. Reject unsupported starts rather than pulling them onto the fitted concept. Monitor departures during integration and define a bounded fallback; do not silently repair arbitrary excursions.
-- Report eligibility coverage and rejected cases. Compare methods on the same eligible set and also report full-set results with a declared fallback, so selection does not create a spurious advantage.
+- Report eligibility coverage and rejected cases. Compare methods on the same eligible set and also report full-set results. A/B/S run ungated, including gray, brown and unrelated starts; geometry methods use identity on rejected inputs. R0 remains an ungated diagnostic. Report unrelated-prompt full-vocabulary endpoint KL and displacement, not merely gate acceptance.
 - Validate prompt/token support as well as projected proximity. An unrelated activation can project near the curve while having an incompatible residual. No claim about steering every generated token is warranted yet.
 
-With U = I and all geometry operations/gating disabled, the baseline integration must recover ODESteer at the same step count. Implement via `BaseODESteer.steer`, since corrections are not captured by replacing a vector field alone. Safeguards may change toy results; identify the implementation version rather than reusing archived numbers as validation of a new algorithm.
+With U = I and all geometry operations/gating disabled, the baseline integration must recover ODESteer's normalized Euler vector field at the same step count. The new implementation is standalone rather than subclassing upstream `BaseODESteer`, avoiding an install-time dependency on the unlicensed upstream repository. It includes an optional numerical parity check using a user's existing upstream checkout with shared sketch hashes/weights. Corrections are explicit integration operations, not only a replacement vector field. Safeguards may change toy results; identify the implementation version rather than reusing archived numbers as validation of a new algorithm.
+
+The untested implementation clips each E2 correction to `correction_ratio * (T/steps) / retractions`, with provisional default ratio 0.25, and freezes the last accepted state on a support exit. Thus the correction budget vanishes with T; R0 deliberately retains unbounded strength-independent corrections as a diagnostic. These are explicit design choices to inspect in the preflight, not evidence of validated behavior. See [`pilot/README.md`](pilot/README.md) for profiles, stage commands, and artifact semantics.
 
 ### 4.3 E3 and optional variants
 
@@ -111,13 +113,15 @@ Question: Which color name best describes the hex code {hex}? Choose one of: red
 Answer:
 ```
 
-The existing fixture was validated on Qwen3-4B; validate the chosen Llama checkpoint rather than assuming transfer. First run 50–100 prompts. **Hardware (open decision):** Llama-3.1-8B needs ≈ 16 GB in bf16, so this cannot run on the current 8 GB machine; use a GPU with ≥ 24 GB or a CPU host with ≥ 32 GB RAM. Quantizing to fit would change activations and break the pinned-checkpoint requirement. Validate the six-way readout and an extended eight-way version with gray and brown separately. The earlier screening criterion was extended chromatic accuracy at least 90% of six-way accuracy, plus correct gray/brown responses on controls; also require useful absolute performance and adequate answer-token probability. Freeze acceptance criteria before evaluating the full pilot.
+The existing fixture was validated on Qwen3-4B; validate the chosen Llama checkpoint rather than assuming transfer. First run 50–100 readout prompts. **Hardware:** the user has 128 GB unified memory. The implementation provides CPU float32, Apple Silicon MPS float16 and CUDA bf16 profiles. Llama-3.1-8B weights alone require approximately 32 GB in float32 or 16 GB in 16-bit precision, plus runtime overhead. Memory capacity does not make the full CPU evaluation practical; use CPU for numerical preflight/small checks and an accelerator for the expanded pilot. Quantizing would change activations and require a distinct experiment. Validate the six-way readout and an extended eight-way version with gray and brown separately. Require extended chromatic accuracy at least 90% of six-way accuracy, correct gray/brown controls, useful absolute performance and adequate answer-token probability. Freeze acceptance criteria before evaluating the full pilot.
 
 Leading-space answer words, including gray/grey/brown, were checked as single tokens in the Llama-3.1 tokenizer. Recheck the exact checkpoint/context and aggregate valid spelling/case variants. Keep an **other** bin for all remaining vocabulary probability; do not renormalize away invalid answers.
 
 For the first red-target classifier, label training sweep stimuli positive when the unsteered model answers red, and negative otherwise, so the target matches the measured readout. Report the resulting hue range, class balance, and behavior on neighboring orange/purple stimuli. Use the same target labels for classifier-based controls and keep target-success evaluation on held-out model outputs.
 
-For the expanded pilot, generate approximately 2,000–3,000 distinct hex stimuli spanning dense hue sweeps at a few saturation/lightness levels, plus gray/brown controls. Specify the colour-coordinate convention and actual levels. Use one fixed saturation/lightness slice for the main hue curve; fit and evaluate other slices as separate conditional controls. Keep splits by hex identity, including near-boundary examples; reserve a small second template for later generalization checks.
+Sample the **primary curve** densely: HSL saturation 0.8, lightness 0.5, hue step 0.25°, deduplicated after rounding to 8-bit hex. The earlier 2,000–3,000-stimulus aspiration must not be met by counting unused context slices or duplicated hexes: RGB quantization limits distinct colours on this fixed curve. Record actual primary counts before collecting activations. Other saturation/lightness slices use a coarse 6° step for plots; evaluate them only as separate conditional experiments. Split by hex identity into 45% train, 10% independent reference, 22.5% validation and 22.5% test. Reserve a second template for transfer, with the same hex-level split; repeated templates are not independent colours.
+
+The full pilot requires at least 20 primary starts in each 90°/120°/150° band and 10 in the separate 180° band in both validation and test, after deduplication/subsampling. These minima are coverage safeguards, not proof of statistical power. Collection checks raw counts, selection checks eligible main-band counts per seed, and confirmatory reports require sufficient eligible test counts. Require at least eight independent model-labeled target-reference outputs; inspect reference-density sensitivity. The reduced CPU smoke profile is explicitly exploratory. Do not infer feasibility or success from an unexecuted default configuration.
 
 The bundled 600 causalab stimuli form six narrow hue clusters (about ±6° around class centres), so they cannot supply tangents through the gaps. Use them for readout checks and held-out evaluation after deduplication against the generated data. Main starts 90°, 120° and 150° toward red need generated stimuli; 150° gives a stronger toy contrast than 120°. Keep 180° separate. Verify the model's unsteered answers and local activation continuity at all these starts.
 
@@ -152,11 +156,15 @@ Run a small comparison first; hold classifier/data, source prompts, intervention
 | C-end: C followed by endpoint-only normal correction | Is repeated manifold following necessary? |
 | E2: tangent projection plus bounded normal correction | Main proposed method, with §4.2 safeguards |
 | F: spline path in the same intervention subspace | Does a known curved path work with matched residual handling? |
-| S: norm-preserving spherical flow using the same probe | Does norm control explain the advantage? GeoSteer-style comparator |
+| S: norm-preserving spherical flow using the same probe | Diagnostic for finite-step norm drift; not a full GeoSteer reproduction or an independent novelty test |
 
 For C-end use the same normal-correction primitive, with its budget chosen on validation data, and report correction cost. For F, hold the orthogonal residual fixed as for C/E2. Wurgaft's published full-space linear versus PCA-manifold comparison uses different residual handling; reproducing its number and isolating geometry are distinct comparisons.
 
-Start with one default neighborhood/retraction configuration and a short validation T grid. Use 10 integration steps for B/C/E2 initially, reflecting the original ODESteer setup. Test 40 steps at selected operating points only if discretization could explain a difference. Record m, neighbor count, bandwidth, correction budget and r. Save intermediate states; decode a common fixed number of checkpoints for path comparisons. A wider r ∈ {1, 3, 10, 30} sweep is a later sensitivity check, not the first job.
+The normalized-input classifier already has a gradient tangent to the activation sphere. Consequently B and S can coincide closely at small step sizes; S mainly removes finite Euler norm growth. Retain it as a numerical diagnostic, exclude it from the confirmatory superiority family, and do not treat B≈S as evidence against or a reproduction of GeoSteer. A claim against that method still requires its actual objective, schedule and evaluation protocol.
+
+Start with one default neighborhood/retraction configuration and a short validation strength grid. Calibrate raw T before outcomes: use multipliers [0, 0.25, 0.5, 1, 2, 4] times the training median of target-to-other chromatic centroid distances at the selected layer. Median training activation norm is a predeclared alternative. Save the scale, multiplier and raw T. Use 10 integration steps initially; test 40 at selected points only if discretization could explain a difference. Record m, neighbors, bandwidth, correction budget and r. Save every solver state; decode endpoints for strength selection, then the common checkpoint grid at frozen strengths for validation/test path comparisons. Pad support-exit trajectories with their frozen state; C-end correction replaces the terminal state without adding a time tick. A wider r sweep is a later sensitivity check.
+
+Before steering, calibrate the identity patch on real validation activations using singleton and repeated-prompt batches versus mixed collection batches, at the intended precision/device. The configurable default maximum probability difference is 0.02; inspect bf16 behavior before trusting this threshold and never widen it automatically. Estimate decode counts before loading weights. Reuse identical prompt/layer/state outputs and enforce an explicit run budget; the CPU profiles intentionally cap evaluation at 1,000 prompt-state decodes.
 
 | Metric | Role |
 |---|---|
@@ -173,7 +181,7 @@ Start with one default neighborhood/retraction configuration and a short validat
 
 Define ρ = |Σ_c p_c exp(iθ_c)| using chromatic options at centres red 0°, orange 30°, yellow 58°, green 120°, blue 235°, purple 285°, with p retaining gray/brown/other mass. Uneven centres and ordinary boundary uncertainty affect ρ; a mixture of chromatic predictions can lower it without representing grey, and brown can be chromatic. Compare to natural boundary examples rather than labeling every decrease as damage.
 
-For E_BC-style path evaluation, define the natural reference and checkpoint rule before testing. The published weekday protocol sums distances at 50 waypoints; a raw integral over method-specific T is not a comparable naturalness score. A reference fitted from dense unsteered colour outputs should be independent of steering/test fitting and should not privilege a particular interpolant without a sensitivity check.
+For E_BC-style path evaluation, define the natural reference and checkpoint rule before testing. The published weekday protocol sums distances at 50 waypoints; a raw integral over method-specific T is not a comparable naturalness score. The untested pilot implementation uses nearest independent reference output distributions, with target-only references for endpoints, and common normalized solver-step checkpoints. This finite-sample support metric is not an exact reproduction of the published behavior-spline E_BC. Report that distinction and check reference-density/parameterization sensitivity before a stronger comparison.
 
 Choose operating strengths on validation data to approach a predeclared success level (80% is a candidate, not yet frozen), then freeze them for test. Report success/quality frontiers too: a method that misses the threshold has no matched-success operating point. Report nominal T, measured length and endpoint displacement separately; equal T does not mean equal distance for E2. Use paired prompt comparisons, at least three fitted seeds for the confirmatory pilot, and prompt-level bootstrap intervals with seed variation reported separately; nested start samples are not independent fitted worlds.
 
@@ -183,10 +191,11 @@ Before outcome inspection, define a practically useful improvement and the analy
 
 | Observation | Decision |
 |---|---|
-| E2 improves endpoint quality at comparable success over C, C-end and S | Continue the endpoint hypothesis; confirm another target and later generation task |
+| E2 improves endpoint quality at comparable success over B, C and C-end | Continue the endpoint hypothesis; confirm another target and later generation task |
 | E2 improves path quality alone | Continue the predeclared path-control objective if its criterion is met; no generation-quality claim |
 | C or C-end matches E2 on the relevant metric | Prefer the simpler method; repeated manifold following has not earned its cost |
-| S explains the gain | Norm preservation is sufficient for this result; empirical concept geometry has not added value |
+| B and S nearly coincide | Expected for tangent gradients and small Euler steps; S supplies little independent evidence |
+| B and S differ materially | Inspect finite-step norm drift and integration sensitivity before attributing gains to concept geometry |
 | Only training-density metrics improve | Insufficient evidence of useful control |
 | R0 causes much of the apparent effect | Attribute it to correction, not target guidance; examine off-concept damage |
 | Full patches work but subspace patches fail | Reconsider the representation before tuning steering |
@@ -198,8 +207,8 @@ Before outcome inspection, define a practically useful improvement and the analy
 ### 6.1 Run now
 
 1. **CPU preflight:** implement/check no-op and small-strength behavior, R0 and eligibility diagnostics. Existing toys already justify a real-model check; avoid another broad shape sweep. Verify that geometry-disabled code reproduces the baseline and preserve archived results separately from revised algorithms.
-2. **Smoke test on the pinned Llama-3.1-8B checkpoint:** 50–100 colour prompts, readout validation and a small donor-patching check. Needs ≥ 16 GB for bf16 weights (§5.1; not this 8 GB machine). Do not substitute a smaller checkpoint unless it separately passes the readout gate.
-3. **Expanded colour pilot after the gate passes:** dense activation collection and the §5.3 comparison on one checkpoint/site. PCA, classifiers, graph operations and analyses are CPU-friendly; a GPU is preferred for thousands of model forwards. Freeze settings on validation, then run the confirmatory test.
+2. **Smoke test on the pinned Llama-3.1-8B checkpoint:** 50–100 readout prompts followed by a small activation collection, no-op calibration and donor-patching check. The 128 GB host has room for the stated weight sizes plus overhead; CPU latency still needs measurement. Do not substitute a smaller checkpoint unless it separately passes the readout gate.
+3. **Expanded colour pilot after the gate passes:** check deduplicated primary coverage and decode budgets before collection. Run the §5.3 comparison on one checkpoint/site. PCA, classifiers, graphs and analyses are CPU-friendly; use MPS/CUDA for the full model-forward workload. Select strengths from validation endpoints, freeze them, then decode selected validation paths and the confirmatory test. Scoped code hashes are provenance, not enforced cache keys: report/comment changes must not trigger recollection. Use a new output directory for substantive algorithm changes.
 4. **Continue only against the predeclared hypothesis:** confirm another target hue and a held-out prompt template before broader tasks. Report failures as well as successful gates.
 
 ### 6.2 Conditional follow-ups, not current milestones
@@ -222,7 +231,7 @@ Colour success establishes feasibility. A stronger methods paper would need an a
 - **Readout and evaluation:** colour classification uncertainty is not desaturation. Preserve other-token mass, validate boundary examples and keep evaluation reference data independent of method fitting. Separate selection and test data.
 - **Extrapolation:** support constraints intentionally limit access to unobserved regions; improved on-support control is not a promise of novel concept combinations.
 - **Scale:** kNN/KDE can become unreliable at large k or sparse sample counts. A learned geometry model is a possible redesign, not an automatic extension of a successful low-dimensional pilot.
-- **Open implementation decisions:** correction budget vanishing with T, gate calibration/fallback, initial neighborhood and m, exact checkpoint/layer convention, output-reference estimator, and practical thresholds must be fixed and recorded before confirmatory evaluation.
+- **Provisional implementation defaults:** a correction budget vanishing with T, distance-based gate and identity/freeze fallbacks, neighborhood/m, layer candidates and nearest-reference output estimator are now specified in the untested code. Inspect them in preflight and validation; record any changes in a new run directory. Checkpoint identity and practical thresholds still need to be fixed before confirmatory evaluation. Default practical-effect thresholds are null, so default runs are exploratory.
 
 ## 8. Related work and novelty
 
