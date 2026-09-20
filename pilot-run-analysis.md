@@ -196,3 +196,52 @@ Verified correct by inspection: the probe's sketch adjoint and normalisation Jac
 - **The intrinsic dimension is prescribed.** `tangent_dim: 1` is a fixed scalar — correct for a hue curve, but by using ground-truth knowledge of the geometry, which weakens "estimated, not prescribed".
 - **Colours can only falsify, never demonstrate.** The payoff of not prescribing the curve matters where the curve cannot be prescribed; on a hue circle with six labelled classes the spline is trivially available. The pilot's role was falsification — and that is exactly what it delivered.
 - **"Unwanted change" was narrow.** It meant the answer-token distribution, other-mass, and off-target KL on 12 unrelated prompts. No generation happens anywhere in the pilot, which is precisely the gap §5 proposes to close.
+
+## 8. Update: decoded endpoint results (2026-09-20)
+
+**This update supersedes the earlier recommendation and statements that the decoded comparison has not run.** Results committed in `c1a27ec` provide a positive exploratory signal for **C-end**, not for continuous manifold-constrained steering E2. The earlier sections remain as the record of the pre-comparison analysis; their strongest negative conclusions should not be treated as established findings.
+
+Sources: [decoded comparison report](pilot-runs/mps-smoke-v1/checks/endpoint-comparison/report.md), [summary](pilot-runs/mps-smoke-v1/checks/endpoint-comparison/summary.json), and the per-method endpoint probability files in the same directory.
+
+### Setup and what changed
+
+The experiment still uses the colour task: Llama-3.1-8B, layer 27, an eight-dimensional concept subspace, one fitted seed, and 16 eligible non-target validation starts sampled across hue order. It decoded 208 prompt states: identity plus C, C-end and E2 at four strength multipliers. These are first-answer probability distributions, not generated text. The no-op error was 0.00176, below the configured 0.02 tolerance.
+
+- **C:** ODE steering projected into the concept subspace, without manifold correction.
+- **C-end:** the same steering followed by three bounded manifold-correction iterations at the endpoint.
+- **E2:** tangent-projected steering with bounded manifold correction throughout the ten integration steps.
+
+C-end and E2 have the same maximum total correction budget, 0.25T. The endpoint metric is Bhattacharyya distance to the nearest natural red-reference output; lower is better. Only three target references are available.
+
+### Main results
+
+| Method | Strength multiplier | Red success | Mean endpoint BC |
+|---|---:|---:|---:|
+| C | 1.5 | 16/16 | 0.02166 |
+| C-end | 1.5 | 16/16 | 0.01255 |
+| E2 | 1.5 | 8/16 | 0.19891 |
+| C | 2 | 16/16 | 0.03613 |
+| C-end | 2 | 16/16 | 0.02477 |
+| E2 | 2 | 12/16 | 0.07893 |
+
+At strength 1.5, **C-end reduces mean endpoint BC by 42.1% versus C at equal observed success**, improving 15 of 16 paired prompts. At strength 2, both again reach 100% success and C-end reduces mean BC by 31.4%, improving all 16 prompts. At 1.5, their mean red probabilities are almost identical (0.797), while other-mass falls from 0.151 to 0.130 with C-end. These are descriptive comparisons chosen after inspecting validation results.
+
+E2 reaches at most 75% success over the tested grid. It therefore has no operating point matching C/C-end's 100% success here; its endpoint quality cannot be ranked fairly against those points. This is evidence against the current E2 configuration, not proof that all strengths or schedules would fail.
+
+The report's `success_comparable: false` concerns its automatic selection of the smallest strength reaching 80% success: C reaches 13/16 at T=1, C-end 14/16 at T=1, and E2 never reaches that threshold. It does not invalidate the separate exploratory C-versus-C-end comparisons at T=1.5 and T=2, where observed success is equal.
+
+### What we have and have not validated
+
+We now have evidence that **endpoint manifold correction can improve the decoded target distribution beyond concept-subspace ODE steering alone**. That is the promising contribution to pursue. These results do not establish that continuous manifold constraints help, that multi-step ODE integration is necessary, or that the method is superior to all existing steering methods.
+
+The result is provisional: one seed, 16 validation starts, three target references, no held-out confirmation and no bootstrap claim. An exploratory leave-one-reference-out check keeps the C-end improvement at T=1.5 positive, but changes its magnitude to roughly 20–42%; reference coverage matters. This sensitivity check is not independent replication.
+
+The earlier premise check also needs a narrower interpretation. Not producing grey weakens that particular prediction; it does not settle intermediate-path naturalness. Tested off-subspace directions being mostly inert for the first answer does not establish that all such directions are harmless for generation, or prove C beats B. The donor-directed straight chord labelled `on_manifold` is not a demonstrated manifold path. Colours can demonstrate a local endpoint benefit, though they cannot by themselves establish generality or a novel advantage on unknown geometry.
+
+### Next experiment and novelty
+
+Prioritise **C-end versus C**. Freeze the operating-point selection rule and endpoint metric before examining held-out outcomes; collect more independent target references; then confirm on more held-out prompts and fitted seeds. Keep equal-success comparisons explicit. A later single-step control is needed to establish whether ODE integration contributes beyond the correction itself.
+
+Do not prioritise a broad E2 sweep on the present evidence. Any E2 follow-up should target a specific reason continuous correction might help, with a matched-success comparison. Generation and preservation of unrelated behaviour remain separate, untested questions.
+
+The candidate novelty is the measured value of a **locally data-estimated manifold correction beyond subspace projection**, particularly the simpler endpoint-only variant. "ODE + manifold" alone is not an established novelty claim; positioning against prior work still requires verification. The present result justifies a focused confirmation experiment, not a superiority claim.
